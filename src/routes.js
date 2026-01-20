@@ -7,6 +7,7 @@ import GenerateInvoice from "layouts/generate-invoice";
 import ManageProjects from "layouts/manage-projects";
 import ManageAnalytics from "layouts/manage-analytics";
 import SignIn from "layouts/authentication/sign-in";
+import ManageEstimates from "layouts/manage-estimates";
 
 // --- NEW IMPORT: Added Manage Invoices ---
 import ManageInvoices from "layouts/manage-invoices";
@@ -98,6 +99,14 @@ const routes = [
     key: "sign-in",
     route: "/authentication/sign-in",
     component: <SignIn />,
+  },
+  {
+    type: "collapse",
+    name: "Manage Estimates",
+    key: "manage-estimates",
+    icon: <Icon fontSize="small">receipt_long</Icon>,
+    route: "/manage-estimates",
+    component: <ManageEstimates />,
   },
 ];
 
