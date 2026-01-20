@@ -60,14 +60,7 @@ const routes = [
     type: "divider",
     key: "divider-1",
   },
-  {
-    type: "collapse",
-    name: "Manage Projects",
-    key: "manage-projects",
-    icon: <Icon fontSize="small">assignment</Icon>,
-    route: "/manage-projects",
-    component: <ManageProjects />,
-  },
+
   {
     type: "collapse",
     name: "Manage Analytics",
@@ -76,7 +69,17 @@ const routes = [
     route: "/manage-analytics",
     component: <ManageAnalytics />,
   },
+
   // --- NEW ROUTE: Manage Invoices (List View) ---
+  {
+    type: "collapse",
+    name: "Manage Estimates",
+    key: "manage-estimates",
+    icon: <Icon fontSize="small">receipt_long</Icon>,
+    route: "/manage-estimates",
+    component: <ManageEstimates />,
+  },
+
   {
     type: "collapse",
     name: "Manage Invoices",
@@ -100,14 +103,6 @@ const routes = [
     key: "sign-in",
     route: "/authentication/sign-in",
     component: <SignIn />,
-  },
-  {
-    type: "collapse",
-    name: "Manage Estimates",
-    key: "manage-estimates",
-    icon: <Icon fontSize="small">receipt_long</Icon>,
-    route: "/manage-estimates",
-    component: <ManageEstimates />,
   },
 
 
