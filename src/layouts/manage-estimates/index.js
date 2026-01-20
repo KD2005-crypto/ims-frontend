@@ -3,12 +3,10 @@ import { useState, useEffect } from "react";
 // @mui material components
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
-import Icon from "@mui/material/Icon";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
-import TextField from "@mui/material/TextField";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
@@ -16,317 +14,217 @@ import MDTypography from "components/MDTypography";
 import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
 
-// SweetAlert for beautiful alerts
-import Swal from "sweetalert2";
-
 // Layout components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
-function ManageEstimates() {
-  // --- STATE VARIABLES ---
+// SweetAlert for Success
+import Swal from "sweetalert2";
+
+function GenerateInvoice() {
+  // --- STATE ---
   const [estimates, setEstimates] = useState([]);
+  const [selectedEstimateId, setSelectedEstimateId] = useState("");
 
-  // Dropdown Data
-  const [chains, setChains] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [brands, setBrands] = useState([]);
+  // Invoice Data
+  const [invoiceData, setInvoiceData] = useState({
+    invoiceNo: "",
+    serviceDetails: "",
+    quantity: 0,
+    costPerQty: 0,
+    amountPayable: 0,
+    amountPaid: 0,
+    balance: 0,
+    emailId: "",
+  });
 
-  // Form Inputs
-  const [selectedChainId, setSelectedChainId] = useState("");
-  const [selectedGroupName, setSelectedGroupName] = useState("");
-  const [selectedBrandName, setSelectedBrandName] = useState("");
-  const [zoneName, setZoneName] = useState("");
-  const [service, setService] = useState("");
-  const [qty, setQty] = useState("");
-  const [costPerUnit, setCostPerUnit] = useState("");
-  const [gstRate, setGstRate] = useState("18"); // Default 18%
-  const [deliveryDate, setDeliveryDate] = useState("");
-  const [deliveryDetails, setDeliveryDetails] = useState("");
-
-  // --- 1. LOAD DATA ON START ---
+  // 1. Load Estimates on Start
   useEffect(() => {
-    fetchDropdownData();
     fetchEstimates();
   }, []);
-
-  const fetchDropdownData = async () => {
-    try {
-      // Ensure HTTPS
-      const chainsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/chains");
-      const groupsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/groups");
-      const brandsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/brands");
-
-      setChains(await chainsRes.json());
-      setGroups(await groupsRes.json());
-      setBrands(await brandsRes.json());
-    } catch (err) {
-      console.error("Error loading dropdowns:", err);
-    }
-  };
 
   const fetchEstimates = async () => {
     try {
       const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates");
       const data = await response.json();
+      console.log("Loaded Estimates:", data);
       setEstimates(data);
     } catch (err) {
-      console.error("Error fetching estimates:", err);
+      console.error("Error loading estimates:", err);
     }
   };
 
-  // --- 2. CREATE ESTIMATE ---
-  const handleCreateEstimate = async () => {
-    // Validation with SweetAlert
-    if (!selectedChainId || !service || !qty || !costPerUnit) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Missing Information',
-        text: 'Please fill in all required fields (Client, Service, Qty, Cost).',
+  // 2. Handle Estimate Selection
+  const handleEstimateSelect = (estId) => {
+    setSelectedEstimateId(estId);
+
+    const selectedEst = estimates.find(e => e.estimatedId === estId);
+
+    if (selectedEst) {
+      // Smart Data Mapping (Handles different variable names)
+      const qty = selectedEst.qty || selectedEst.quantity || 1;
+      const cost = selectedEst.costPerUnit || selectedEst.cost || 0;
+      const total = selectedEst.totalCost || (qty * cost);
+
+      setInvoiceData({
+        ...invoiceData,
+        serviceDetails: selectedEst.service || "Service",
+        quantity: qty,
+        costPerQty: cost,
+        amountPayable: total,
+        amountPaid: 0,
+        balance: total
       });
-      return;
     }
+  };
+
+  // 3. Handle Manual Input Changes
+  const handleChange = (field, value) => {
+    setInvoiceData(prev => {
+      const newData = { ...prev, [field]: value };
+
+      if (field === 'quantity' || field === 'costPerQty') {
+        const qty = parseFloat(newData.quantity) || 0;
+        const cost = parseFloat(newData.costPerQty) || 0;
+        newData.amountPayable = qty * cost;
+        newData.balance = newData.amountPayable - (parseFloat(newData.amountPaid) || 0);
+      }
+
+      if (field === 'amountPaid') {
+        const payable = parseFloat(newData.amountPayable) || 0;
+        const paid = parseFloat(value) || 0;
+        newData.balance = payable - paid;
+      }
+
+      return newData;
+    });
+  };
+
+  // 4. GENERATE INVOICE
+  const handleGenerate = async () => {
+    const safeEstimateId = selectedEstimateId === "" ? null : selectedEstimateId;
 
     const payload = {
-      chainId: selectedChainId,
-      groupName: selectedGroupName,
-      brandName: selectedBrandName,
-      zoneName: zoneName,
-      service: service,
-      qty: parseInt(qty),
-      costPerUnit: parseFloat(costPerUnit),
-      gstRate: parseFloat(gstRate),
-      deliveryDate: deliveryDate,
-      deliveryDetails: deliveryDetails
+      estimatedId: safeEstimateId,
+      serviceDetails: invoiceData.serviceDetails || "General Service",
+      quantity: parseInt(invoiceData.quantity) || 1,
+      costPerQty: parseFloat(invoiceData.costPerQty) || 0,
+      amount: parseFloat(invoiceData.amountPayable) || 0,
+      amountPaid: parseFloat(invoiceData.amountPaid) || 0,
+      emailId: invoiceData.emailId || "client@email.com"
     };
 
     try {
-      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates", {
+      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/invoices/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        const newEst = await response.json();
-
-        // Success Alert
+        const invoice = await response.json();
         Swal.fire({
           icon: 'success',
-          title: 'Estimate Created!',
-          text: `Total Value: Rs. ${newEst.totalCost} (incl. GST)`,
-          confirmButtonColor: '#4caf50'
+          title: 'Invoice Generated!',
+          text: 'PDF Download Starting...',
+          timer: 2000,
+          showConfirmButton: false
         });
-
-        // Clear Form
-        setService("");
-        setQty("");
-        setCostPerUnit("");
-        setDeliveryDetails("");
-        fetchEstimates(); // Refresh Table
+        downloadPdf(invoice.id);
       } else {
-        Swal.fire({
-          icon: 'error',
-          title: 'Submission Failed',
-          text: 'Could not save the estimate. Please try again.',
-        });
+        const errorText = await response.text();
+        console.error("Backend Error:", errorText);
+        Swal.fire({ icon: 'error', title: 'Failed', text: 'Backend rejected the data.' });
       }
-    } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Server Error',
-        text: 'Check your internet connection.',
-      });
+    } catch (error) {
+      console.error("Network Error:", error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Network Connection Failed.' });
     }
   };
 
-  // --- 3. DELETE ESTIMATE (With Confirmation) ---
-  const handleDeleteEstimate = async (id) => {
-    // Beautiful Confirmation Dialog
-    Swal.fire({
-      title: 'Are you sure?',
-      text: "You won't be able to revert this!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, delete it!'
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          await fetch(`https://ims-backend-production-e15c.up.railway.app/api/estimates/${id}`, { method: "DELETE" });
-
-          Swal.fire(
-            'Deleted!',
-            'The estimate has been removed.',
-            'success'
-          );
-          fetchEstimates();
-        } catch (error) {
-          Swal.fire('Error', 'Failed to delete estimate.', 'error');
-        }
-      }
-    });
+  const downloadPdf = async (id) => {
+    try {
+      const res = await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}/pdf`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Invoice.pdf');
+      document.body.appendChild(link);
+      link.click();
+    } catch (err) {
+      console.error("PDF Error:", err);
+    }
   };
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
       <MDBox pt={6} pb={3}>
-        <Grid container spacing={6}>
-
-          {/* --- FORM SECTION --- */}
-          <Grid item xs={12}>
+        <Grid container spacing={6} justifyContent="center">
+          <Grid item xs={12} md={8}>
             <Card>
-              <MDBox
-                mx={2}
-                mt={-3}
-                py={3}
-                px={2}
-                variant="gradient"
-                bgColor="warning"
-                borderRadius="lg"
-                coloredShadow="warning"
-              >
-                <MDTypography variant="h6" color="white">
-                  Create Sales Estimate
-                </MDTypography>
+              <MDBox mx={2} mt={-3} py={3} px={2} variant="gradient" bgColor="info" borderRadius="lg" coloredShadow="info">
+                <MDTypography variant="h6" color="white">Generate Invoice</MDTypography>
               </MDBox>
               <MDBox p={3}>
+                <MDBox mb={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Select Estimate (Optional)</InputLabel>
+                    <Select
+                      value={selectedEstimateId}
+                      label="Select Estimate (Optional)"
+                      onChange={(e) => handleEstimateSelect(e.target.value)}
+                      sx={{ height: "45px" }}
+                    >
+                      <MenuItem value=""><em>None (Create Manual Invoice)</em></MenuItem>
+                      {estimates.length > 0 ? (
+                        estimates.map((est) => (
+                          <MenuItem key={est.estimatedId} value={est.estimatedId}>
+                            {/* FIX: Displays Group Name explicitly */}
+                            {est.groupName || "No Group"} | {est.chain?.chainName || "Client"} - {est.service} (Rs. {est.totalCost})
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>No Pending Estimates Found</MenuItem>
+                      )}
+                    </Select>
+                  </FormControl>
+                </MDBox>
+
                 <Grid container spacing={2}>
-
-                  {/* Row 1: Dropdowns */}
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Select Group</InputLabel>
-                      <Select
-                        value={selectedGroupName}
-                        label="Select Group"
-                        onChange={(e) => setSelectedGroupName(e.target.value)}
-                        sx={{ height: "45px" }}
-                      >
-                        {groups.map((g) => <MenuItem key={g.groupId} value={g.groupName}>{g.groupName}</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Select Chain (Client)</InputLabel>
-                      <Select
-                        value={selectedChainId}
-                        label="Select Chain (Client)"
-                        onChange={(e) => setSelectedChainId(e.target.value)}
-                        sx={{ height: "45px" }}
-                      >
-                        {chains.map((c) => <MenuItem key={c.chainId} value={c.chainId}>{c.chainName}</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Select Brand</InputLabel>
-                      <Select
-                        value={selectedBrandName}
-                        label="Select Brand"
-                        onChange={(e) => setSelectedBrandName(e.target.value)}
-                        sx={{ height: "45px" }}
-                      >
-                        {brands.map((b) => <MenuItem key={b.brandId} value={b.brandName}>{b.brandName}</MenuItem>)}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <MDInput label="Zone / Location" fullWidth value={zoneName} onChange={(e) => setZoneName(e.target.value)} />
-                  </Grid>
-
-                  {/* Row 2: Service Details */}
-                  <Grid item xs={12} md={6}>
-                    <MDInput label="Service Description" fullWidth value={service} onChange={(e) => setService(e.target.value)} />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <MDInput type="number" label="Quantity" fullWidth value={qty} onChange={(e) => setQty(e.target.value)} />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <MDInput type="number" label="Cost Per Unit" fullWidth value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <MDInput type="number" label="GST Rate %" fullWidth value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
-                  </Grid>
-
-                  {/* Row 3: Delivery */}
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      type="date"
-                      fullWidth
-                      label="Delivery Date"
-                      InputLabelProps={{ shrink: true }}
-                      value={deliveryDate}
-                      onChange={(e) => setDeliveryDate(e.target.value)}
-                    />
+                  <Grid item xs={12}>
+                    <MDTypography variant="button" fontWeight="bold">Invoice Details</MDTypography>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <MDInput label="Delivery Address / Details" fullWidth value={deliveryDetails} onChange={(e) => setDeliveryDetails(e.target.value)} />
+                    <MDInput label="Service" fullWidth value={invoiceData.serviceDetails} onChange={(e) => handleChange('serviceDetails', e.target.value)} />
                   </Grid>
-                  <Grid item xs={12} md={3}>
-                    <MDButton variant="gradient" color="warning" fullWidth onClick={handleCreateEstimate}>
-                      Save Estimate
-                    </MDButton>
+                  <Grid item xs={6} md={3}>
+                    <MDInput type="number" label="Qty" fullWidth value={invoiceData.quantity} onChange={(e) => handleChange('quantity', e.target.value)} />
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <MDInput type="number" label="Cost/Unit" fullWidth value={invoiceData.costPerQty} onChange={(e) => handleChange('costPerQty', e.target.value)} />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <MDInput label="Total Payable" fullWidth value={invoiceData.amountPayable} disabled />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <MDInput type="number" label="Amount Paid Now" fullWidth value={invoiceData.amountPaid} onChange={(e) => handleChange('amountPaid', e.target.value)} />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <MDInput label="Balance" fullWidth value={invoiceData.balance} disabled />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <MDInput label="Client Email" fullWidth value={invoiceData.emailId} onChange={(e) => handleChange('emailId', e.target.value)} />
+                  </Grid>
+                  <Grid item xs={12} mt={3}>
+                    <MDButton variant="gradient" color="success" fullWidth onClick={handleGenerate}>Generate Invoice & Download PDF</MDButton>
                   </Grid>
                 </Grid>
               </MDBox>
             </Card>
           </Grid>
-
-          {/* --- TABLE SECTION --- */}
-          <Grid item xs={12}>
-            <Card>
-              <MDBox
-                mx={2}
-                mt={-3}
-                py={3}
-                px={2}
-                variant="gradient"
-                bgColor="dark"
-                borderRadius="lg"
-                coloredShadow="dark"
-              >
-                <MDTypography variant="h6" color="white">
-                  Existing Estimates
-                </MDTypography>
-              </MDBox>
-              <MDBox pt={3} px={3} pb={2}>
-                {estimates.map((est) => (
-                  <MDBox key={est.estimatedId} display="flex" justifyContent="space-between" alignItems="center" p={2} mb={1} sx={{ borderBottom: "1px solid #f0f2f5" }}>
-                    <MDBox>
-                      <MDTypography variant="button" fontWeight="bold" display="block">
-                        {est.service} (Qty: {est.qty})
-                      </MDTypography>
-                      <MDTypography variant="caption" color="text">
-                        Client: {est.chain?.chainName} | Brand: {est.brandName}
-                      </MDTypography>
-                    </MDBox>
-                    <MDBox textAlign="right">
-                      <MDTypography variant="button" fontWeight="bold" color="success" display="block">
-                        Total: Rs. {est.totalCost}
-                      </MDTypography>
-                      <MDTypography variant="caption" color="text">
-                        (Base: {est.costPerUnit * est.qty} + GST: {est.gstRate}%)
-                      </MDTypography>
-                    </MDBox>
-                    <MDButton variant="text" color="error" onClick={() => handleDeleteEstimate(est.estimatedId)}>
-                      <Icon>delete</Icon>
-                    </MDButton>
-                  </MDBox>
-                ))}
-                {estimates.length === 0 && <MDTypography p={2} variant="caption">No estimates found.</MDTypography>}
-              </MDBox>
-            </Card>
-          </Grid>
-
         </Grid>
       </MDBox>
       <Footer />
@@ -334,4 +232,4 @@ function ManageEstimates() {
   );
 }
 
-export default ManageEstimates;
+export default GenerateInvoice;
