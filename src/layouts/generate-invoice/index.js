@@ -46,76 +46,79 @@ function GenerateInvoice() {
 
   const fetchEstimates = async () => {
     try {
-      console.log("Fetching Estimates...");
       const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates");
       const data = await response.json();
-      console.log("Loaded Estimates:", data); // Check Console to see your data!
+      console.log("Loaded Estimates:", data); // DEBUG: Check console to see if estimates loaded
       setEstimates(data);
     } catch (err) {
       console.error("Error loading estimates:", err);
     }
   };
 
-  // 2. Handle Estimate Selection (THE UNIVERSAL FIX)
+  // 2. Handle Estimate Selection
   const handleEstimateSelect = (estId) => {
     setSelectedEstimateId(estId);
 
-    // Find the full estimate object
     const selectedEst = estimates.find(e => e.estimatedId === estId);
 
     if (selectedEst) {
-      console.log("Selected Estimate:", selectedEst);
-
-      // --- SMART ADAPTER: Checks all possible names ---
+      // Smart Data Mapping (Handles different variable names)
       const qty = selectedEst.qty || selectedEst.quantity || 1;
-      const cost = selectedEst.costPerUnit || selectedEst.cost || selectedEst.rate || 0;
-      const service = selectedEst.service || selectedEst.serviceDetails || "Service";
-
-      // Calculate Total safely
-      // If backend sends 'totalCost', use it. Otherwise, calculate manually (Qty * Cost) + GST
-      let total = selectedEst.totalCost;
-      if (!total) {
-        const gst = selectedEst.gstRate || 0;
-        const baseAmount = qty * cost;
-        const gstAmount = baseAmount * (gst / 100);
-        total = baseAmount + gstAmount;
-      }
+      const cost = selectedEst.costPerUnit || selectedEst.cost || 0;
+      const total = selectedEst.totalCost || (qty * cost); // Fallback calculation
 
       setInvoiceData({
         ...invoiceData,
-        serviceDetails: service,
+        serviceDetails: selectedEst.service || "Service",
         quantity: qty,
         costPerQty: cost,
-        amountPayable: parseFloat(total.toFixed(2)), // Round to 2 decimals
+        amountPayable: total,
         amountPaid: 0,
-        balance: parseFloat(total.toFixed(2))
+        balance: total
       });
     }
   };
 
-  // 3. Handle Payment Input (Auto-Calc Balance)
-  const handlePaymentChange = (amountPaid) => {
-    const paid = parseFloat(amountPaid) || 0;
-    const payable = invoiceData.amountPayable;
+  // 3. Handle Manual Input Changes (Unlocks the form)
+  const handleChange = (field, value) => {
+    setInvoiceData(prev => {
+      const newData = { ...prev, [field]: value };
 
-    setInvoiceData({
-      ...invoiceData,
-      amountPaid: paid,
-      balance: (payable - paid).toFixed(2)
+      // Auto-Recalculate Totals if Quantity or Cost changes
+      if (field === 'quantity' || field === 'costPerQty') {
+        const qty = parseFloat(newData.quantity) || 0;
+        const cost = parseFloat(newData.costPerQty) || 0;
+        newData.amountPayable = qty * cost;
+        newData.balance = newData.amountPayable - (parseFloat(newData.amountPaid) || 0);
+      }
+
+      // Auto-Update Balance if Payment changes
+      if (field === 'amountPaid') {
+        const payable = parseFloat(newData.amountPayable) || 0;
+        const paid = parseFloat(value) || 0;
+        newData.balance = payable - paid;
+      }
+
+      return newData;
     });
   };
 
-  // 4. GENERATE INVOICE
+  // 4. GENERATE INVOICE (With Crash Protection)
   const handleGenerate = async () => {
+    // CRASH FIX: Convert empty string "" to null
+    const safeEstimateId = selectedEstimateId === "" ? null : selectedEstimateId;
+
     const payload = {
-      estimatedId: selectedEstimateId,
-      serviceDetails: invoiceData.serviceDetails,
-      quantity: invoiceData.quantity,
-      costPerQty: invoiceData.costPerQty,
-      amount: invoiceData.amountPayable,
-      amountPaid: invoiceData.amountPaid,
-      emailId: invoiceData.emailId
+      estimatedId: safeEstimateId,
+      serviceDetails: invoiceData.serviceDetails || "General Service",
+      quantity: parseInt(invoiceData.quantity) || 1,
+      costPerQty: parseFloat(invoiceData.costPerQty) || 0,
+      amount: parseFloat(invoiceData.amountPayable) || 0,
+      amountPaid: parseFloat(invoiceData.amountPaid) || 0,
+      emailId: invoiceData.emailId || "client@email.com"
     };
+
+    console.log("Sending Payload:", payload); // DEBUG: Check this in Console!
 
     try {
       const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/invoices/create", {
@@ -130,18 +133,20 @@ function GenerateInvoice() {
         Swal.fire({
           icon: 'success',
           title: 'Invoice Generated!',
-          text: 'Downloading PDF...',
+          text: 'PDF Download Starting...',
           timer: 2000,
           showConfirmButton: false
         });
 
         downloadPdf(invoice.id);
-
       } else {
-        Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to create invoice.' });
+        const errorText = await response.text();
+        console.error("Backend Error:", errorText);
+        Swal.fire({ icon: 'error', title: 'Failed', text: 'Backend rejected the data. Check Console.' });
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Network Error:", error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Network Connection Failed.' });
     }
   };
 
@@ -150,7 +155,6 @@ function GenerateInvoice() {
       const res = await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}/pdf`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', 'Invoice.pdf');
@@ -179,7 +183,7 @@ function GenerateInvoice() {
                 coloredShadow="info"
               >
                 <MDTypography variant="h6" color="white">
-                  Generate Invoice from Estimate
+                  Generate Invoice
                 </MDTypography>
               </MDBox>
               <MDBox p={3}>
@@ -187,76 +191,87 @@ function GenerateInvoice() {
                 {/* STEP 1: Select Estimate */}
                 <MDBox mb={3}>
                   <FormControl fullWidth>
-                    <InputLabel>Select Pending Estimate</InputLabel>
+                    <InputLabel>Select Estimate (Optional)</InputLabel>
                     <Select
                       value={selectedEstimateId}
-                      label="Select Pending Estimate"
+                      label="Select Estimate (Optional)"
                       onChange={(e) => handleEstimateSelect(e.target.value)}
                       sx={{ height: "45px" }}
                     >
+                      <MenuItem value=""><em>None (Create Manual Invoice)</em></MenuItem>
                       {estimates.map((est) => (
                         <MenuItem key={est.estimatedId} value={est.estimatedId}>
-                          {est.chain ? est.chain.chainName : "Client"} - {est.service} (Rs. {est.totalCost || (est.qty * est.costPerUnit)})
+                          {est.chain ? est.chain.chainName : "Client"} - {est.service} (Rs. {est.totalCost})
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
                 </MDBox>
 
-                {/* STEP 2: Verify Details (Read Only) */}
-                {selectedEstimateId && (
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}>
-                      <MDTypography variant="button" fontWeight="bold">Invoice Details</MDTypography>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <MDInput label="Service" fullWidth value={invoiceData.serviceDetails} disabled />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                      <MDInput label="Qty" fullWidth value={invoiceData.quantity} disabled />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                      <MDInput label="Total Payable (Inc. GST)" fullWidth value={invoiceData.amountPayable} disabled />
-                    </Grid>
-
-                    {/* STEP 3: Enter Payment */}
-                    <Grid item xs={12} mt={2}>
-                      <MDTypography variant="button" fontWeight="bold">Payment Status</MDTypography>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <MDInput
-                        type="number"
-                        label="Amount Paid Now"
-                        fullWidth
-                        value={invoiceData.amountPaid}
-                        onChange={(e) => handlePaymentChange(e.target.value)}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <MDInput
-                        label="Balance Remaining"
-                        fullWidth
-                        value={invoiceData.balance}
-                        disabled
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <MDInput
-                        label="Client Email (for record)"
-                        fullWidth
-                        value={invoiceData.emailId}
-                        onChange={(e) => setInvoiceData({...invoiceData, emailId: e.target.value})}
-                      />
-                    </Grid>
-
-                    {/* STEP 4: Generate */}
-                    <Grid item xs={12} mt={3}>
-                      <MDButton variant="gradient" color="success" fullWidth onClick={handleGenerate}>
-                        Generate Invoice & Download PDF
-                      </MDButton>
-                    </Grid>
+                {/* STEP 2: Edit Details (Now Unlocked!) */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <MDTypography variant="button" fontWeight="bold">Invoice Details</MDTypography>
                   </Grid>
-                )}
+                  <Grid item xs={12} md={6}>
+                    <MDInput
+                      label="Service" fullWidth
+                      value={invoiceData.serviceDetails}
+                      onChange={(e) => handleChange('serviceDetails', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <MDInput
+                      type="number" label="Qty" fullWidth
+                      value={invoiceData.quantity}
+                      onChange={(e) => handleChange('quantity', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <MDInput
+                      type="number" label="Cost/Unit" fullWidth
+                      value={invoiceData.costPerQty}
+                      onChange={(e) => handleChange('costPerQty', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <MDInput
+                      label="Total Payable" fullWidth
+                      value={invoiceData.amountPayable}
+                      disabled // Auto-calculated
+                    />
+                  </Grid>
+
+                  {/* STEP 3: Enter Payment */}
+                  <Grid item xs={12} md={6}>
+                    <MDInput
+                      type="number" label="Amount Paid Now" fullWidth
+                      value={invoiceData.amountPaid}
+                      onChange={(e) => handleChange('amountPaid', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <MDInput
+                      label="Balance" fullWidth
+                      value={invoiceData.balance}
+                      disabled
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <MDInput
+                      label="Client Email" fullWidth
+                      value={invoiceData.emailId}
+                      onChange={(e) => handleChange('emailId', e.target.value)}
+                    />
+                  </Grid>
+
+                  {/* STEP 4: Generate */}
+                  <Grid item xs={12} mt={3}>
+                    <MDButton variant="gradient" color="success" fullWidth onClick={handleGenerate}>
+                      Generate Invoice & Download PDF
+                    </MDButton>
+                  </Grid>
+                </Grid>
 
               </MDBox>
             </Card>
