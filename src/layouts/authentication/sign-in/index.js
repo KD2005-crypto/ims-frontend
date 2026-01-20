@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // react-router-dom components
 import { Link } from "react-router-dom";
@@ -14,16 +14,26 @@ import MDTypography from "components/MDTypography";
 import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
 
+// --- THE FIX: Import Context to control the Sidebar ---
+import { useMaterialUIController, setLayout } from "context";
+
 function Basic() {
   const [rememberMe, setRememberMe] = useState(false);
 
+  // --- THE FIX: Get the Controller ---
+  const [controller, dispatch] = useMaterialUIController();
+
+  // --- THE FIX: Hide Sidebar on Load ---
+  useEffect(() => {
+    setLayout(dispatch, "page"); // "page" mode hides the Sidenav & Navbar
+  }, [dispatch]);
+
   const handleSetRememberMe = () => setRememberMe(!rememberMe);
 
-  // NEW Professional Abstract Tech Background
+  // Professional Abstract Tech Background
   const bgImage = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80";
 
   return (
-    // Custom Full-Screen Container to remove the default Navbar
     <MDBox
       width="100vw"
       height="100vh"
@@ -42,7 +52,7 @@ function Basic() {
             {/* --- 1. HEADER SECTION --- */}
             <MDBox
               variant="gradient"
-              bgColor="info" // Uses your theme's Blue
+              bgColor="info"
               borderRadius="lg"
               coloredShadow="info"
               mx={2}
@@ -88,7 +98,7 @@ function Basic() {
                     color="info"
                     fullWidth
                     component={Link}
-                    to="/dashboard" // Temporary link to skip login for demo
+                    to="/dashboard"
                   >
                     Secure Login
                   </MDButton>
@@ -113,7 +123,6 @@ function Basic() {
             </MDBox>
           </Card>
 
-          {/* Footer Text placed outside the card, against the background */}
           <MDBox mt={2} textAlign="center">
             <MDTypography variant="caption" color="white" opacity={0.8}>
               © 2026 Code-B Enterprise System. Secure Access.
