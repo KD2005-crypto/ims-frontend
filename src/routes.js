@@ -6,7 +6,10 @@ import ManageLocations from "layouts/manage-locations";
 import GenerateInvoice from "layouts/generate-invoice";
 import ManageProjects from "layouts/manage-projects";
 import ManageAnalytics from "layouts/manage-analytics";
-import SignIn from "layouts/authentication/sign-in"; // Added this import
+import SignIn from "layouts/authentication/sign-in";
+
+// --- NEW IMPORT: Added Manage Invoices ---
+import ManageInvoices from "layouts/manage-invoices";
 
 import Icon from "@mui/material/Icon";
 
@@ -71,6 +74,16 @@ const routes = [
     route: "/manage-analytics",
     component: <ManageAnalytics />,
   },
+  // --- NEW ROUTE: Manage Invoices (List View) ---
+  {
+    type: "collapse",
+    name: "Manage Invoices",
+    key: "manage-invoices",
+    icon: <Icon fontSize="small">description</Icon>, // Icon for the list of invoices
+    route: "/manage-invoices",
+    component: <ManageInvoices />,
+  },
+  // --- EXISTING ROUTE: Generate Invoice (Create View) ---
   {
     type: "collapse",
     name: "Generate Invoice",
@@ -80,7 +93,7 @@ const routes = [
     component: <GenerateInvoice />,
   },
   {
-    type: "auth", // This allows the route to exist without appearing in Sidenav
+    type: "auth",
     name: "Sign In",
     key: "sign-in",
     route: "/authentication/sign-in",
