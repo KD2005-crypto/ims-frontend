@@ -16,6 +16,9 @@ import MDTypography from "components/MDTypography";
 import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
 
+// SweetAlert for beautiful alerts
+import Swal from "sweetalert2";
+
 // Layout components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
@@ -42,8 +45,6 @@ function ManageEstimates() {
   const [deliveryDate, setDeliveryDate] = useState("");
   const [deliveryDetails, setDeliveryDetails] = useState("");
 
-  const [error, setError] = useState("");
-
   // --- 1. LOAD DATA ON START ---
   useEffect(() => {
     fetchDropdownData();
@@ -52,6 +53,7 @@ function ManageEstimates() {
 
   const fetchDropdownData = async () => {
     try {
+      // Ensure HTTPS
       const chainsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/chains");
       const groupsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/groups");
       const brandsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/brands");
@@ -76,9 +78,13 @@ function ManageEstimates() {
 
   // --- 2. CREATE ESTIMATE ---
   const handleCreateEstimate = async () => {
-    // Validation
+    // Validation with SweetAlert
     if (!selectedChainId || !service || !qty || !costPerUnit) {
-      setError("Please fill in all required fields.");
+      Swal.fire({
+        icon: 'warning',
+        title: 'Missing Information',
+        text: 'Please fill in all required fields (Client, Service, Qty, Cost).',
+      });
       return;
     }
 
@@ -91,7 +97,7 @@ function ManageEstimates() {
       qty: parseInt(qty),
       costPerUnit: parseFloat(costPerUnit),
       gstRate: parseFloat(gstRate),
-      deliveryDate: deliveryDate, // Send strictly as YYYY-MM-DD
+      deliveryDate: deliveryDate,
       deliveryDetails: deliveryDetails
     };
 
@@ -103,28 +109,65 @@ function ManageEstimates() {
       });
 
       if (response.ok) {
+        const newEst = await response.json();
+
+        // Success Alert
+        Swal.fire({
+          icon: 'success',
+          title: 'Estimate Created!',
+          text: `Total Value: Rs. ${newEst.totalCost} (incl. GST)`,
+          confirmButtonColor: '#4caf50'
+        });
+
         // Clear Form
         setService("");
         setQty("");
         setCostPerUnit("");
         setDeliveryDetails("");
-        setError("");
         fetchEstimates(); // Refresh Table
-        alert("Estimate Created Successfully! Total Cost Calculated.");
       } else {
-        setError("Failed to create estimate. Check inputs.");
+        Swal.fire({
+          icon: 'error',
+          title: 'Submission Failed',
+          text: 'Could not save the estimate. Please try again.',
+        });
       }
     } catch (err) {
-      setError("Server Error.");
+      Swal.fire({
+        icon: 'error',
+        title: 'Server Error',
+        text: 'Check your internet connection.',
+      });
     }
   };
 
-  // --- 3. DELETE ESTIMATE ---
+  // --- 3. DELETE ESTIMATE (With Confirmation) ---
   const handleDeleteEstimate = async (id) => {
-    if (window.confirm("Are you sure? This cannot be undone.")) {
-      await fetch(`https://ims-backend-production-e15c.up.railway.app/api/estimates/${id}`, { method: "DELETE" });
-      fetchEstimates();
-    }
+    // Beautiful Confirmation Dialog
+    Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await fetch(`https://ims-backend-production-e15c.up.railway.app/api/estimates/${id}`, { method: "DELETE" });
+
+          Swal.fire(
+            'Deleted!',
+            'The estimate has been removed.',
+            'success'
+          );
+          fetchEstimates();
+        } catch (error) {
+          Swal.fire('Error', 'Failed to delete estimate.', 'error');
+        }
+      }
+    });
   };
 
   return (
@@ -142,7 +185,7 @@ function ManageEstimates() {
                 py={3}
                 px={2}
                 variant="gradient"
-                bgColor="warning" // Different color to distinguish from Chains/Brands
+                bgColor="warning"
                 borderRadius="lg"
                 coloredShadow="warning"
               >
@@ -234,8 +277,6 @@ function ManageEstimates() {
                     </MDButton>
                   </Grid>
                 </Grid>
-
-                {error && <MDTypography color="error" variant="caption">{error}</MDTypography>}
               </MDBox>
             </Card>
           </Grid>
