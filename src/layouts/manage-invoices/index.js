@@ -21,6 +21,9 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 import Button from "@mui/material/Button";
 
+// SweetAlert for beautiful popups
+import Swal from "sweetalert2";
+
 // Layout components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
@@ -32,8 +35,10 @@ function ManageInvoices() {
   // --- POP-UP STATE ---
   const [open, setOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  // New Form Structure
   const [paymentForm, setPaymentForm] = useState({
-    amountPaid: "",
+    payingNow: "", // The new money entering
     paymentMode: "UPI",
     transactionId: ""
   });
@@ -44,6 +49,7 @@ function ManageInvoices() {
 
   const fetchInvoices = async () => {
     try {
+      // Ensure https is present
       const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/invoices");
       const data = await response.json();
       setInvoices(data);
@@ -56,7 +62,7 @@ function ManageInvoices() {
   const handleOpenPayment = (invoice) => {
     setSelectedInvoice(invoice);
     setPaymentForm({
-      amountPaid: invoice.balance, // Auto-fill with remaining balance
+      payingNow: "", // Start empty so user types fresh amount
       paymentMode: "UPI",
       transactionId: ""
     });
@@ -68,10 +74,15 @@ function ManageInvoices() {
     setSelectedInvoice(null);
   };
 
-  // --- 2. SUBMIT PAYMENT ---
+  // --- 2. SUBMIT PAYMENT (Updated) ---
   const handleConfirmPayment = async () => {
-    if (!paymentForm.transactionId || !paymentForm.amountPaid) {
-      alert("Please enter Transaction ID and Amount");
+    if (!paymentForm.transactionId || !paymentForm.payingNow) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Missing Details',
+        text: 'Please enter both Amount and Transaction ID!',
+        confirmButtonColor: '#3085d6',
+      });
       return;
     }
 
@@ -79,7 +90,7 @@ function ManageInvoices() {
       const queryParams = new URLSearchParams({
         paymentMode: paymentForm.paymentMode,
         transactionId: paymentForm.transactionId,
-        amountPaid: paymentForm.amountPaid
+        amountPaid: paymentForm.payingNow // Send the NEW amount
       });
 
       const response = await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${selectedInvoice.id}/confirm-payment?${queryParams}`, {
@@ -87,11 +98,22 @@ function ManageInvoices() {
       });
 
       if (response.ok) {
-        alert("Payment Confirmed! Status Updated.");
+        // BEAUTIFUL SUCCESS ALERT
+        Swal.fire({
+          icon: 'success',
+          title: 'Payment Recorded!',
+          text: `Successfully added Rs. ${paymentForm.payingNow} via ${paymentForm.paymentMode}`,
+          confirmButtonColor: '#4caf50', // Green button
+        });
+
         fetchInvoices(); // Refresh the list
         handleClose();
       } else {
-        alert("Failed to update payment.");
+        Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: 'Something went wrong on the server.',
+        });
       }
     } catch (error) {
       console.error("Error:", error);
@@ -105,7 +127,6 @@ function ManageInvoices() {
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
 
-      // Create invisible link to download
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `Invoice_${invoiceNo}.pdf`);
@@ -116,11 +137,10 @@ function ManageInvoices() {
     }
   };
 
-  // Helper for Status Colors
   const getStatusColor = (status) => {
     if (status === "PAID") return "success";
     if (status === "PARTIAL") return "warning";
-    return "error"; // PENDING
+    return "error";
   };
 
   return (
@@ -152,17 +172,15 @@ function ManageInvoices() {
                   invoices.map((inv) => (
                     <MDBox key={inv.id} display="flex" justifyContent="space-between" alignItems="center" p={2} mb={1} sx={{ borderBottom: "1px solid #f0f2f5" }}>
 
-                      {/* Column 1: Details */}
                       <MDBox>
                         <MDTypography variant="button" fontWeight="bold" display="block">
                           #{inv.invoiceNo} - {inv.serviceDetails}
                         </MDTypography>
                         <MDTypography variant="caption" color="text">
-                          Date: {inv.dateOfService} | Est ID: {inv.estimatedId}
+                          Chain ID: {inv.chainId} | Est ID: {inv.estimatedId}
                         </MDTypography>
                       </MDBox>
 
-                      {/* Column 2: Financials */}
                       <MDBox textAlign="right">
                         <MDTypography variant="button" fontWeight="bold" display="block">
                           Rs. {inv.amountPayable}
@@ -172,12 +190,10 @@ function ManageInvoices() {
                         </MDTypography>
                       </MDBox>
 
-                      {/* Column 3: Status Badge */}
                       <MDBox ml={2}>
                         <MDBadge badgeContent={inv.status} color={getStatusColor(inv.status)} container />
                       </MDBox>
 
-                      {/* Column 4: Actions */}
                       <MDBox ml={2} display="flex" gap={1}>
                         {inv.status !== "PAID" && (
                           <MDButton
@@ -210,51 +226,75 @@ function ManageInvoices() {
       </MDBox>
       <Footer />
 
-      {/* --- PAYMENT POP-UP DIALOG --- */}
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Confirm Payment Receipt</DialogTitle>
+      {/* --- IMPROVED POP-UP DIALOG --- */}
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold', color: '#1a73e8' }}>
+          Confirm Payment Receipt
+        </DialogTitle>
         <DialogContent>
-          <MDTypography variant="caption" mb={2} display="block">
-            Enter details for Invoice #{selectedInvoice?.invoiceNo}
+          <MDTypography variant="caption" mb={2} display="block" textAlign="center">
+            Record a new payment for Invoice #{selectedInvoice?.invoiceNo}
           </MDTypography>
 
-          <TextField
-            margin="dense"
-            label="Amount Received (Rs)"
-            type="number"
-            fullWidth
-            value={paymentForm.amountPaid}
-            onChange={(e) => setPaymentForm({...paymentForm, amountPaid: e.target.value})}
-          />
+          <MDBox component="form" role="form" mt={2}>
 
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Payment Mode</InputLabel>
-            <Select
-              value={paymentForm.paymentMode}
-              label="Payment Mode"
-              onChange={(e) => setPaymentForm({...paymentForm, paymentMode: e.target.value})}
-              sx={{ height: "45px" }}
-            >
-              <MenuItem value="UPI">UPI</MenuItem>
-              <MenuItem value="NEFT">NEFT / RTGS</MenuItem>
-              <MenuItem value="CHEQUE">Cheque</MenuItem>
-              <MenuItem value="CASH">Cash</MenuItem>
-            </Select>
-          </FormControl>
+            {/* 1. READ ONLY: Balance Due */}
+            <TextField
+              margin="dense"
+              label="Current Balance Due (Read-Only)"
+              type="number"
+              fullWidth
+              variant="filled" // Different style to show it's disabled
+              value={selectedInvoice?.balance || 0}
+              disabled // User cannot change this
+              sx={{ mb: 2, backgroundColor: '#f0f2f5' }}
+            />
 
-          <TextField
-            margin="dense"
-            label="Transaction / Reference ID"
-            type="text"
-            fullWidth
-            sx={{ mt: 2 }}
-            value={paymentForm.transactionId}
-            onChange={(e) => setPaymentForm({...paymentForm, transactionId: e.target.value})}
-          />
+            {/* 2. INPUT: Amount Paying Now */}
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Enter Amount Paying Now"
+              type="number"
+              fullWidth
+              value={paymentForm.payingNow}
+              onChange={(e) => setPaymentForm({...paymentForm, payingNow: e.target.value})}
+              placeholder="e.g. 5000"
+              sx={{ mb: 2 }}
+            />
+
+            {/* 3. INPUT: Payment Mode */}
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Payment Mode</InputLabel>
+              <Select
+                value={paymentForm.paymentMode}
+                label="Payment Mode"
+                onChange={(e) => setPaymentForm({...paymentForm, paymentMode: e.target.value})}
+                sx={{ height: "45px" }}
+              >
+                <MenuItem value="UPI">UPI</MenuItem>
+                <MenuItem value="NEFT">NEFT / RTGS</MenuItem>
+                <MenuItem value="CHEQUE">Cheque</MenuItem>
+                <MenuItem value="CASH">Cash</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* 4. INPUT: Transaction ID */}
+            <TextField
+              margin="dense"
+              label="Transaction / Reference ID"
+              type="text"
+              fullWidth
+              value={paymentForm.transactionId}
+              onChange={(e) => setPaymentForm({...paymentForm, transactionId: e.target.value})}
+            />
+          </MDBox>
 
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose} color="error">Cancel</Button>
+        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
+          <Button onClick={handleClose} color="error" variant="outlined" sx={{ mr: 2 }}>
+            Cancel
+          </Button>
           <Button onClick={handleConfirmPayment} color="success" variant="contained">
             Confirm & Update
           </Button>
