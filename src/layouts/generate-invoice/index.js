@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import MDBox from "components/MDBox";
@@ -11,10 +11,8 @@ import Footer from "examples/Footer";
 import { jsPDF } from "jspdf";
 
 function GenerateInvoice() {
-  // Simulate fetching data from an existing Estimate [cite: 116]
-  // In a real app, you would fetch this using useEffect and an ID
   const [invoiceData, setInvoiceData] = useState({
-    invoiceNo: Math.floor(1000 + Math.random() * 9000), // [cite: 115] Auto-generated unique ID
+    invoiceNo: Math.floor(1000 + Math.random() * 9000),
     estimateId: 23,
     chainId: 2912,
     serviceDetails: "Maintenance of Propeller Shaft",
@@ -25,7 +23,7 @@ function GenerateInvoice() {
     balance: 0,
     deliveryDate: "2024-12-14",
     deliveryDetails: "Delta Tech Pvt Ltd, 2-A1",
-    email: "", // This is the ONLY editable field
+    email: "",
   });
 
   const handleEmailChange = (e) => {
@@ -33,25 +31,16 @@ function GenerateInvoice() {
   };
 
   const handleGenerate = () => {
-    // 1. Generate PDF [cite: 117]
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.text("INVOICE", 105, 20, null, null, "center");
-
     doc.setFontSize(12);
     doc.text(`Invoice No: ${invoiceData.invoiceNo}`, 20, 40);
     doc.text(`Estimate ID: ${invoiceData.estimateId}`, 120, 40);
-
     doc.text(`Service: ${invoiceData.serviceDetails}`, 20, 50);
-    doc.text(`Delivery Address: ${invoiceData.deliveryDetails}`, 20, 60);
-
     doc.text(`Total Amount: INR ${invoiceData.amountPayable}`, 20, 80);
-    doc.text(`Balance Due: INR ${invoiceData.balance}`, 120, 80);
-
     doc.save(`Invoice_${invoiceData.invoiceNo}.pdf`);
-
-    // 2. Alert User (In real app, this would trigger the backend email) [cite: 118]
-    alert(`Invoice Generated! Automated email sent to: ${invoiceData.email}`);
+    alert(`Invoice Generated! Email sent to: ${invoiceData.email}`);
   };
 
   return (
@@ -67,7 +56,6 @@ function GenerateInvoice() {
                 </MDTypography>
 
                 <Grid container spacing={3}>
-                  {/* Row 1 */}
                   <Grid item xs={12} md={4}>
                     <MDInput label="Invoice No" value={invoiceData.invoiceNo} fullWidth disabled />
                   </Grid>
@@ -78,7 +66,6 @@ function GenerateInvoice() {
                     <MDInput label="Chain ID" value={invoiceData.chainId} fullWidth disabled />
                   </Grid>
 
-                  {/* Row 2 */}
                   <Grid item xs={12} md={8}>
                     <MDInput label="Service Provided" value={invoiceData.serviceDetails} fullWidth disabled />
                   </Grid>
@@ -89,56 +76,40 @@ function GenerateInvoice() {
                     <MDInput label="Cost/Qty" value={invoiceData.costPerQty} fullWidth disabled />
                   </Grid>
 
-                  {/* Row 3: Financials */}
                   <Grid item xs={12} md={4}>
-                    <MDInput label="Amount Payable (Rs)" value={invoiceData.amountPayable} fullWidth disabled />
+                    <MDInput label="Amount Payable" value={invoiceData.amountPayable} fullWidth disabled />
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <MDInput label="Amount Paid (Rs)" value={invoiceData.amountPaid} fullWidth disabled />
+                    <MDInput label="Amount Paid" value={invoiceData.amountPaid} fullWidth disabled />
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <MDInput label="Balance (Rs)" value={invoiceData.balance} fullWidth disabled />
+                    <MDInput label="Balance" value={invoiceData.balance} fullWidth disabled />
                   </Grid>
 
-                  {/* Row 4: Delivery & Email */}
                   <Grid item xs={12} md={4}>
                     <MDInput label="Delivery Date" value={invoiceData.deliveryDate} fullWidth disabled />
                   </Grid>
                   <Grid item xs={12} md={4}>
-                    <MDInput
-                      label="Other Delivery Details"
-                      value={invoiceData.deliveryDetails}
-                      multiline rows={3}
-                      fullWidth
-                      disabled
-                    />
+                    <MDInput label="Details" value={invoiceData.deliveryDetails} multiline rows={3} fullWidth disabled />
                   </Grid>
-
-                  {/* THE ONLY EDITABLE FIELD  */}
                   <Grid item xs={12} md={4}>
-                    <MDInput
-                      label="Enter Email ID"
-                      value={invoiceData.email}
-                      onChange={handleEmailChange}
-                      fullWidth
-                      placeholder="client@email.com"
-                    />
+                    <MDInput label="Enter Email ID" value={invoiceData.email} onChange={handleEmailChange} fullWidth placeholder="client@email.com"/>
                   </Grid>
 
                   <Grid item xs={12}>
                     <MDButton variant="gradient" color="info" fullWidth onClick={handleGenerate}>
                       Generate Invoice
                     </MDButton>
+                  </Grid>
+                </Grid>
               </MDBox>
+            </Card>
           </Grid>
+        </Grid>
       </MDBox>
-    </Card>
-</Grid>
-</Grid>
-</MDBox>
-  <Footer />
-</DashboardLayout>
-);
+      <Footer />
+    </DashboardLayout>
+  );
 }
 
 export default GenerateInvoice;
