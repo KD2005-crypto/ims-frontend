@@ -92,7 +92,7 @@ function DashboardNavbar({ absolute, light, isMini }) {
     handleTransparentNavbar();
 
     // Fetch Invoices for Notifications
-    fetch("ims-backend-production-e15c.up.railway.app/api/invoices")
+    fetch("https://ims-backend-production-e15c.up.railway.app/api/invoices")
       .then((res) => res.json())
       .then((data) => setInvoices(data.slice(0, 5))) // Get top 5 recent
       .catch((err) => console.log(err));
