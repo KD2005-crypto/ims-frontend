@@ -109,14 +109,8 @@ const routes = [
     route: "/manage-estimates",
     component: <ManageEstimates />,
   },
-  {
-    type: "collapse",
-    name: "Manage Invoices",
-    key: "manage-invoices",
-    icon: <Icon fontSize="small">assignment_turned_in</Icon>, // Checkmark icon
-    route: "/manage-invoices",
-    component: <ManageInvoices />,
-  },
+
+
 ];
 
 export default routes;
