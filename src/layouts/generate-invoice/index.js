@@ -1,193 +1,253 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// @mui material components
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
+import Icon from "@mui/material/Icon";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import InputLabel from "@mui/material/InputLabel";
+import FormControl from "@mui/material/FormControl";
+
+// Material Dashboard 2 React components
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
+
+// Layout components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
-import { jsPDF } from "jspdf";
-import Swal from "sweetalert2"; // Import the beautiful alert
 
 function GenerateInvoice() {
+  // --- STATE ---
+  const [estimates, setEstimates] = useState([]);
+  const [selectedEstimateId, setSelectedEstimateId] = useState("");
+
+  // Invoice Data (Auto-filled from Estimate)
   const [invoiceData, setInvoiceData] = useState({
-    invoiceNo: Math.floor(1000 + Math.random() * 9000),
-    estimateId: 23,
-    chainId: 2912,
-    serviceDetails: "Maintenance of Propeller Shaft (Comprehensive Service)",
-    qty: 10,
-    costPerQty: 500,
-    amountPayable: 5000,
-    amountPaid: 5000,
+    invoiceNo: "",
+    serviceDetails: "",
+    quantity: 0,
+    costPerQty: 0,
+    amountPayable: 0,
+    amountPaid: 0,
     balance: 0,
-    deliveryDate: "2024-12-14",
-    deliveryDetails: "Delta Tech Pvt Ltd, Plot No 2-A1, Industrial Area",
-    email: "",
+    emailId: "",
   });
 
-  const handleEmailChange = (e) => {
-    setInvoiceData({ ...invoiceData, email: e.target.value });
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // 1. Load Estimates on Start (FIXED URL)
+  useEffect(() => {
+    fetchEstimates();
+  }, []);
+
+  const fetchEstimates = async () => {
+    try {
+      // ADDED HTTPS HERE
+      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates");
+      const data = await response.json();
+      setEstimates(data);
+    } catch (err) {
+      console.error("Error loading estimates:", err);
+    }
   };
 
-  const handleGenerate = () => {
-    const doc = new jsPDF();
+  // 2. Handle Estimate Selection (AUTO-FILL)
+  const handleEstimateSelect = (estId) => {
+    setSelectedEstimateId(estId);
 
-    // --- 1. HEADER SECTION (Professional Blue Background) ---
-    doc.setFillColor(26, 35, 126); // Navy Blue
-    doc.rect(0, 0, 210, 40, "F"); // Colored top bar
+    // Find the full estimate object
+    const selectedEst = estimates.find(e => e.estimatedId === estId);
 
-    doc.setTextColor(255, 255, 255); // White Text
-    doc.setFontSize(26);
-    doc.setFont("helvetica", "bold");
-    doc.text("INVOICE", 160, 28);
+    if (selectedEst) {
+      setInvoiceData({
+        ...invoiceData,
+        serviceDetails: selectedEst.service,
+        quantity: selectedEst.qty,
+        costPerQty: selectedEst.costPerUnit,
+        amountPayable: selectedEst.totalCost, // Includes GST!
+        // Reset payment fields
+        amountPaid: 0,
+        balance: selectedEst.totalCost
+      });
+    }
+  };
 
-    doc.setFontSize(16);
-    doc.text("CODE-B ENTERPRISES", 20, 28);
+  // 3. Handle Payment Input (Auto-Calc Balance)
+  const handlePaymentChange = (amountPaid) => {
+    const paid = parseFloat(amountPaid) || 0;
+    const payable = invoiceData.amountPayable;
 
-    // --- 2. INVOICE META DATA (Right Aligned) ---
-    doc.setTextColor(0, 0, 0); // Black Text
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
+    setInvoiceData({
+      ...invoiceData,
+      amountPaid: paid,
+      balance: payable - paid
+    });
+  };
 
-    // Helper to draw a "Label: Value" line
-    const drawMeta = (label, value, y) => {
-      doc.setFont("helvetica", "bold");
-      doc.text(label, 140, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(value, 170, y);
+  // 4. GENERATE INVOICE (FIXED URL)
+  const handleGenerate = async () => {
+    const payload = {
+      estimatedId: selectedEstimateId,
+      serviceDetails: invoiceData.serviceDetails,
+      quantity: invoiceData.quantity,
+      costPerQty: invoiceData.costPerQty,
+      amount: invoiceData.amountPayable,
+      amountPaid: invoiceData.amountPaid,
+      emailId: invoiceData.emailId
     };
 
-    drawMeta("Invoice No:", `#${invoiceData.invoiceNo}`, 60);
-    drawMeta("Date:", new Date().toLocaleDateString(), 66);
-    drawMeta("Estimate ID:", `${invoiceData.estimateId}`, 72);
-    drawMeta("Chain ID:", `${invoiceData.chainId}`, 78);
+    try {
+      // ADDED HTTPS HERE
+      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/invoices/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-    // --- 3. BILL TO SECTION ---
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("BILL TO:", 20, 60);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(invoiceData.deliveryDetails, 20, 68, { maxWidth: 80 });
-    if(invoiceData.email) doc.text(`Email: ${invoiceData.email}`, 20, 85);
+      if (response.ok) {
+        const invoice = await response.json();
+        // Trigger PDF Download
+        downloadPdf(invoice.id);
+        setShowSuccess(true);
+      } else {
+        alert("Failed to create invoice");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
 
-    // --- 4. TABLE HEADER (Gray Bar) ---
-    doc.setFillColor(240, 240, 240); // Light Gray
-    doc.rect(20, 100, 170, 10, "F");
+  const downloadPdf = async (id) => {
+    try {
+      // ADDED HTTPS HERE
+      const res = await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}/pdf`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      setPdfUrl(url);
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Description", 25, 107);
-    doc.text("Qty", 120, 107);
-    doc.text("Rate", 140, 107);
-    doc.text("Amount", 170, 107);
-
-    // --- 5. TABLE CONTENT ---
-    doc.setFont("helvetica", "normal");
-    doc.text(invoiceData.serviceDetails, 25, 118, { maxWidth: 90 });
-    doc.text(String(invoiceData.qty), 120, 118);
-    doc.text(`Rs. ${invoiceData.costPerQty}`, 140, 118);
-    doc.text(`Rs. ${invoiceData.amountPayable}`, 170, 118);
-
-    // Draw a line under the item
-    doc.setDrawColor(200, 200, 200);
-    doc.line(20, 130, 190, 130);
-
-    // --- 6. TOTALS SECTION ---
-    const startY = 145;
-    doc.text("Subtotal:", 140, startY);
-    doc.text(`Rs. ${invoiceData.amountPayable}`, 170, startY);
-
-    doc.text("Tax (0%):", 140, startY + 6);
-    doc.text("Rs. 0", 170, startY + 6);
-
-    // Grand Total (Bold & Blue)
-    doc.setFillColor(26, 35, 126); // Navy Blue
-    doc.rect(135, startY + 10, 60, 10, "F"); // Box
-    doc.setTextColor(255, 255, 255); // White Text
-    doc.setFont("helvetica", "bold");
-    doc.text("Total:", 140, startY + 17);
-    doc.text(`Rs. ${invoiceData.amountPayable}`, 170, startY + 17);
-
-    // --- 7. FOOTER ---
-    doc.setTextColor(100, 100, 100); // Gray
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "italic");
-    doc.text("Thank you for your business!", 105, 280, null, null, "center");
-
-    // SAVE
-    doc.save(`Invoice_${invoiceData.invoiceNo}.pdf`);
-
-    // --- 8. BEAUTIFUL SUCCESS MESSAGE ---
-    Swal.fire({
-      title: 'Invoice Generated!',
-      text: `PDF downloaded successfully. Email sent to ${invoiceData.email || 'Client'}.`,
-      icon: 'success',
-      confirmButtonColor: '#1a237e',
-      confirmButtonText: 'Great!'
-    });
+      // Auto Click to Download
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Invoice.pdf');
+      document.body.appendChild(link);
+      link.click();
+    } catch (err) {
+      console.error("PDF Error:", err);
+    }
   };
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
-      <MDBox py={3}>
-        <Grid container justifyContent="center">
-          <Grid item xs={12} lg={10}>
+      <MDBox pt={6} pb={3}>
+        <Grid container spacing={6} justifyContent="center">
+          <Grid item xs={12} md={8}>
             <Card>
-              <MDBox p={3}>
-                <MDTypography variant="h5" mb={3}>
-                  Create Invoice Section
+              <MDBox
+                mx={2}
+                mt={-3}
+                py={3}
+                px={2}
+                variant="gradient"
+                bgColor="info"
+                borderRadius="lg"
+                coloredShadow="info"
+              >
+                <MDTypography variant="h6" color="white">
+                  Generate Invoice from Estimate
                 </MDTypography>
+              </MDBox>
+              <MDBox p={3}>
 
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Invoice No" value={invoiceData.invoiceNo} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Estimate ID" value={invoiceData.estimateId} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Chain ID" value={invoiceData.chainId} fullWidth disabled />
-                  </Grid>
+                {/* STEP 1: Select Estimate */}
+                <MDBox mb={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Select Pending Estimate</InputLabel>
+                    <Select
+                      value={selectedEstimateId}
+                      label="Select Pending Estimate"
+                      onChange={(e) => handleEstimateSelect(e.target.value)}
+                      sx={{ height: "45px" }}
+                    >
+                      {estimates.map((est) => (
+                        <MenuItem key={est.estimatedId} value={est.estimatedId}>
+                          {est.chain.chainName} - {est.service} (Rs. {est.totalCost})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </MDBox>
 
-                  <Grid item xs={12} md={8}>
-                    <MDInput label="Service Provided" value={invoiceData.serviceDetails} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <MDInput label="Quantity" value={invoiceData.qty} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <MDInput label="Cost/Qty" value={invoiceData.costPerQty} fullWidth disabled />
-                  </Grid>
+                {/* STEP 2: Verify Details (Read Only) */}
+                {selectedEstimateId && (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <MDTypography variant="button" fontWeight="bold">Invoice Details</MDTypography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <MDInput label="Service" fullWidth value={invoiceData.serviceDetails} disabled />
+                    </Grid>
+                    <Grid item xs={6} md={3}>
+                      <MDInput label="Qty" fullWidth value={invoiceData.quantity} disabled />
+                    </Grid>
+                    <Grid item xs={6} md={3}>
+                      <MDInput label="Total Payable (Inc. GST)" fullWidth value={invoiceData.amountPayable} disabled />
+                    </Grid>
 
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Amount Payable (Rs)" value={invoiceData.amountPayable} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Amount Paid (Rs)" value={invoiceData.amountPaid} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Balance (Rs)" value={invoiceData.balance} fullWidth disabled />
-                  </Grid>
+                    {/* STEP 3: Enter Payment */}
+                    <Grid item xs={12} mt={2}>
+                      <MDTypography variant="button" fontWeight="bold">Payment Status</MDTypography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <MDInput
+                        type="number"
+                        label="Amount Paid Now"
+                        fullWidth
+                        value={invoiceData.amountPaid}
+                        onChange={(e) => handlePaymentChange(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <MDInput
+                        label="Balance Remaining"
+                        fullWidth
+                        value={invoiceData.balance}
+                        disabled
+                        error={invoiceData.balance > 0}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <MDInput
+                        label="Client Email (for record)"
+                        fullWidth
+                        value={invoiceData.emailId}
+                        onChange={(e) => setInvoiceData({...invoiceData, emailId: e.target.value})}
+                      />
+                    </Grid>
 
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Delivery Date" value={invoiceData.deliveryDate} fullWidth disabled />
+                    {/* STEP 4: Generate */}
+                    <Grid item xs={12} mt={3}>
+                      <MDButton variant="gradient" color="success" fullWidth onClick={handleGenerate}>
+                        Generate Invoice & Download PDF
+                      </MDButton>
+                    </Grid>
                   </Grid>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Details" value={invoiceData.deliveryDetails} multiline rows={3} fullWidth disabled />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <MDInput label="Enter Email ID" value={invoiceData.email} onChange={handleEmailChange} fullWidth placeholder="client@email.com"/>
-                  </Grid>
+                )}
 
-                  <Grid item xs={12}>
-                    <MDButton variant="gradient" color="info" fullWidth onClick={handleGenerate}>
-                      Generate Invoice
-                    </MDButton>
-                  </Grid>
-                </Grid>
+                {/* Success Message */}
+                {showSuccess && (
+                  <MDBox mt={3} textAlign="center">
+                    <MDTypography variant="h5" color="success" fontWeight="medium">
+                      Invoice Generated Successfully!
+                    </MDTypography>
+                  </MDBox>
+                )}
+
               </MDBox>
             </Card>
           </Grid>
