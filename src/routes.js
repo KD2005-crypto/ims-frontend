@@ -8,9 +8,10 @@ import ManageProjects from "layouts/manage-projects";
 import ManageAnalytics from "layouts/manage-analytics";
 import SignIn from "layouts/authentication/sign-in";
 import ManageEstimates from "layouts/manage-estimates";
+import ManageInvoices from "layouts/manage-invoices";
 
 // --- NEW IMPORT: Added Manage Invoices ---
-import ManageInvoices from "layouts/manage-invoices";
+
 
 import Icon from "@mui/material/Icon";
 
@@ -107,6 +108,14 @@ const routes = [
     icon: <Icon fontSize="small">receipt_long</Icon>,
     route: "/manage-estimates",
     component: <ManageEstimates />,
+  },
+  {
+    type: "collapse",
+    name: "Manage Invoices",
+    key: "manage-invoices",
+    icon: <Icon fontSize="small">assignment_turned_in</Icon>, // Checkmark icon
+    route: "/manage-invoices",
+    component: <ManageInvoices />,
   },
 ];
 
