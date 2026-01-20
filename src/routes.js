@@ -79,6 +79,15 @@ const routes = [
     route: "/manage-estimates",
     component: <ManageEstimates />,
   },
+  {
+    type: "collapse",
+    name: "Generate Invoice",
+    key: "generate-invoice",
+    icon: <Icon fontSize="small">receipt</Icon>,
+    route: "/generate-invoice",
+    component: <GenerateInvoice />,
+  },
+
 
   {
     type: "collapse",
@@ -89,14 +98,7 @@ const routes = [
     component: <ManageInvoices />,
   },
   // --- EXISTING ROUTE: Generate Invoice (Create View) ---
-  {
-    type: "collapse",
-    name: "Generate Invoice",
-    key: "generate-invoice",
-    icon: <Icon fontSize="small">receipt</Icon>,
-    route: "/generate-invoice",
-    component: <GenerateInvoice />,
-  },
+
   {
     type: "auth",
     name: "Sign In",
