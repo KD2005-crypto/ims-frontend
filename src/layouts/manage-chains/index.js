@@ -79,7 +79,8 @@ function ManageChains() {
     const payload = {
       chainName: chainName,
       gstNumber: gstNumber,
-      group_id: selectedGroupId,
+      // FIXED: Changed "group_id" to "groupId" to match Backend Requirement
+      groupId: selectedGroupId,
     };
 
     try {
@@ -96,7 +97,7 @@ function ManageChains() {
         setError("");
         fetchChains(); // Refresh list
       } else {
-        setError("Failed to add chain.");
+        setError("Failed to add chain. (Backend rejected data)");
       }
     } catch (err) {
       setError("Server Error.");
@@ -224,7 +225,7 @@ function ManageChains() {
                         {chain.chainName}
                       </MDTypography>
                       <MDTypography variant="caption" color="text">
-                        Group: {chain.clientGroup.groupName} | GST: {chain.gstNumber}
+                        Group: {chain.clientGroup ? chain.clientGroup.groupName : "No Group"} | GST: {chain.gstNumber}
                       </MDTypography>
                     </MDBox>
                     <MDButton
