@@ -125,7 +125,7 @@ function Basic() {
 
           <MDBox mt={2} textAlign="center">
             <MDTypography variant="caption" color="white" opacity={0.8}>
-              © 2026 Code-B Enterprise System. Secure Access.
+              © 2026 Code-B Enterprise System. Dhanshri K.
             </MDTypography>
           </MDBox>
         </Grid>
