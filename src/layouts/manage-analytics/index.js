@@ -23,7 +23,7 @@ function ManageAnalytics() {
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    fetch("ims-backend-production-e15c.up.railway.app/api/charts")
+    fetch("https://ims-backend-production-e15c.up.railway.app/api/charts")
       .then((res) => res.json())
       .then((data) => setCharts(data));
   }, []);
