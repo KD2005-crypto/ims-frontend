@@ -1,9 +1,3 @@
-/**
- * Code-B IMS Routes
- * Only includes the active modules for the Internship Project.
- */
-
-// Code-B Layouts
 import Dashboard from "layouts/dashboard";
 import ManageGroups from "layouts/manage-groups";
 import ManageChains from "layouts/manage-chains";
@@ -12,8 +6,8 @@ import ManageLocations from "layouts/manage-locations";
 import GenerateInvoice from "layouts/generate-invoice";
 import ManageProjects from "layouts/manage-projects";
 import ManageAnalytics from "layouts/manage-analytics";
+import SignIn from "layouts/authentication/sign-in"; // Added this import
 
-// @mui icons
 import Icon from "@mui/material/Icon";
 
 const routes = [
@@ -58,7 +52,7 @@ const routes = [
     component: <ManageLocations />,
   },
   {
-    type: "divider", // Visual separator
+    type: "divider",
     key: "divider-1",
   },
   {
@@ -77,7 +71,6 @@ const routes = [
     route: "/manage-analytics",
     component: <ManageAnalytics />,
   },
-
   {
     type: "collapse",
     name: "Generate Invoice",
@@ -85,6 +78,13 @@ const routes = [
     icon: <Icon fontSize="small">receipt</Icon>,
     route: "/generate-invoice",
     component: <GenerateInvoice />,
+  },
+  {
+    type: "auth", // This allows the route to exist without appearing in Sidenav
+    name: "Sign In",
+    key: "sign-in",
+    route: "/authentication/sign-in",
+    component: <SignIn />,
   },
 ];
 
