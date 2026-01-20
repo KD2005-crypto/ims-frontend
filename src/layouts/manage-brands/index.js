@@ -26,7 +26,7 @@ function ManageBrands() {
   const [chains, setChains] = useState([]);
 
   // Search State
-  const [searchTerm, setSearchTerm] = useState(""); // <--- NEW SEARCH STATE
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Form inputs
   const [brandName, setBrandName] = useState("");
@@ -69,7 +69,8 @@ function ManageBrands() {
 
     const payload = {
       brandName: brandName,
-      chain_id: selectedChainId,
+      // FIXED: Changed "chain_id" to "chainId" to match Backend Requirement
+      chainId: selectedChainId,
     };
 
     try {
@@ -85,7 +86,7 @@ function ManageBrands() {
         setError("");
         fetchBrands(); // Refresh list immediately
       } else {
-        setError("Failed to add brand.");
+        setError("Failed to add brand. (Backend rejected data)");
       }
     } catch (err) {
       setError("Server Error.");
@@ -202,10 +203,10 @@ function ManageBrands() {
                 {brands
                   .filter((brand) => {
                     if (searchTerm === "") return true;
-                    return (
-                      brand.brandName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      brand.chain.chainName.toLowerCase().includes(searchTerm.toLowerCase())
-                    );
+                    // Helper to safely check name
+                    const bName = brand.brandName ? brand.brandName.toLowerCase() : "";
+                    const cName = brand.chain && brand.chain.chainName ? brand.chain.chainName.toLowerCase() : "";
+                    return bName.includes(searchTerm.toLowerCase()) || cName.includes(searchTerm.toLowerCase());
                   })
                   .map((brand) => (
                     <MDBox
@@ -222,7 +223,7 @@ function ManageBrands() {
                           {brand.brandName}
                         </MDTypography>
                         <MDTypography variant="caption" color="text">
-                          Linked Chain: {brand.chain.chainName}
+                          Linked Chain: {brand.chain ? brand.chain.chainName : "Unknown"}
                         </MDTypography>
                       </MDBox>
                       <MDButton
