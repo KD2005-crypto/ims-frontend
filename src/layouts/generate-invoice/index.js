@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 // @mui material components
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
-import Icon from "@mui/material/Icon";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
@@ -20,12 +19,15 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
+// SweetAlert for Success
+import Swal from "sweetalert2";
+
 function GenerateInvoice() {
   // --- STATE ---
   const [estimates, setEstimates] = useState([]);
   const [selectedEstimateId, setSelectedEstimateId] = useState("");
 
-  // Invoice Data (Auto-filled from Estimate)
+  // Invoice Data
   const [invoiceData, setInvoiceData] = useState({
     invoiceNo: "",
     serviceDetails: "",
@@ -37,26 +39,24 @@ function GenerateInvoice() {
     emailId: "",
   });
 
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  // 1. Load Estimates on Start (FIXED URL)
+  // 1. Load Estimates on Start
   useEffect(() => {
     fetchEstimates();
   }, []);
 
   const fetchEstimates = async () => {
     try {
-      // ADDED HTTPS HERE
+      console.log("Fetching Estimates...");
       const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates");
       const data = await response.json();
+      console.log("Loaded Estimates:", data); // Check Console to see your data!
       setEstimates(data);
     } catch (err) {
       console.error("Error loading estimates:", err);
     }
   };
 
-  // 2. Handle Estimate Selection (AUTO-FILL)
+  // 2. Handle Estimate Selection (THE UNIVERSAL FIX)
   const handleEstimateSelect = (estId) => {
     setSelectedEstimateId(estId);
 
@@ -64,15 +64,31 @@ function GenerateInvoice() {
     const selectedEst = estimates.find(e => e.estimatedId === estId);
 
     if (selectedEst) {
+      console.log("Selected Estimate:", selectedEst);
+
+      // --- SMART ADAPTER: Checks all possible names ---
+      const qty = selectedEst.qty || selectedEst.quantity || 1;
+      const cost = selectedEst.costPerUnit || selectedEst.cost || selectedEst.rate || 0;
+      const service = selectedEst.service || selectedEst.serviceDetails || "Service";
+
+      // Calculate Total safely
+      // If backend sends 'totalCost', use it. Otherwise, calculate manually (Qty * Cost) + GST
+      let total = selectedEst.totalCost;
+      if (!total) {
+        const gst = selectedEst.gstRate || 0;
+        const baseAmount = qty * cost;
+        const gstAmount = baseAmount * (gst / 100);
+        total = baseAmount + gstAmount;
+      }
+
       setInvoiceData({
         ...invoiceData,
-        serviceDetails: selectedEst.service,
-        quantity: selectedEst.qty,
-        costPerQty: selectedEst.costPerUnit,
-        amountPayable: selectedEst.totalCost, // Includes GST!
-        // Reset payment fields
+        serviceDetails: service,
+        quantity: qty,
+        costPerQty: cost,
+        amountPayable: parseFloat(total.toFixed(2)), // Round to 2 decimals
         amountPaid: 0,
-        balance: selectedEst.totalCost
+        balance: parseFloat(total.toFixed(2))
       });
     }
   };
@@ -85,11 +101,11 @@ function GenerateInvoice() {
     setInvoiceData({
       ...invoiceData,
       amountPaid: paid,
-      balance: payable - paid
+      balance: (payable - paid).toFixed(2)
     });
   };
 
-  // 4. GENERATE INVOICE (FIXED URL)
+  // 4. GENERATE INVOICE
   const handleGenerate = async () => {
     const payload = {
       estimatedId: selectedEstimateId,
@@ -102,7 +118,6 @@ function GenerateInvoice() {
     };
 
     try {
-      // ADDED HTTPS HERE
       const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/invoices/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,11 +126,19 @@ function GenerateInvoice() {
 
       if (response.ok) {
         const invoice = await response.json();
-        // Trigger PDF Download
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Invoice Generated!',
+          text: 'Downloading PDF...',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
         downloadPdf(invoice.id);
-        setShowSuccess(true);
+
       } else {
-        alert("Failed to create invoice");
+        Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to create invoice.' });
       }
     } catch (error) {
       console.error("Error:", error);
@@ -124,13 +147,10 @@ function GenerateInvoice() {
 
   const downloadPdf = async (id) => {
     try {
-      // ADDED HTTPS HERE
       const res = await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}/pdf`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      setPdfUrl(url);
 
-      // Auto Click to Download
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', 'Invoice.pdf');
@@ -176,7 +196,7 @@ function GenerateInvoice() {
                     >
                       {estimates.map((est) => (
                         <MenuItem key={est.estimatedId} value={est.estimatedId}>
-                          {est.chain.chainName} - {est.service} (Rs. {est.totalCost})
+                          {est.chain ? est.chain.chainName : "Client"} - {est.service} (Rs. {est.totalCost || (est.qty * est.costPerUnit)})
                         </MenuItem>
                       ))}
                     </Select>
@@ -218,7 +238,6 @@ function GenerateInvoice() {
                         fullWidth
                         value={invoiceData.balance}
                         disabled
-                        error={invoiceData.balance > 0}
                       />
                     </Grid>
                     <Grid item xs={12}>
@@ -237,15 +256,6 @@ function GenerateInvoice() {
                       </MDButton>
                     </Grid>
                   </Grid>
-                )}
-
-                {/* Success Message */}
-                {showSuccess && (
-                  <MDBox mt={3} textAlign="center">
-                    <MDTypography variant="h5" color="success" fontWeight="medium">
-                      Invoice Generated Successfully!
-                    </MDTypography>
-                  </MDBox>
                 )}
 
               </MDBox>
