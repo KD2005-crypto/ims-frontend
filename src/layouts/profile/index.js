@@ -28,8 +28,7 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
-// Custom Assets
-import backgroundImage from "assets/images/bg-profile.jpeg";
+// SweetAlert
 import Swal from "sweetalert2";
 
 const API_URL = "https://ims-backend-production-e15c.up.railway.app/api";
@@ -39,25 +38,10 @@ const StatCard = ({ title, value, icon, color }) => (
   <Card sx={{ height: "100%", p: 2, border: "1px solid #e0e0e0", boxShadow: "none" }}>
       <MDBox display="flex" justifyContent="space-between" alignItems="center">
           <MDBox>
-              <MDTypography variant="caption" fontWeight="bold" color="text" textTransform="uppercase">
-                  {title}
-              </MDTypography>
-              <MDTypography variant="h4" fontWeight="bold">
-                  {value}
-              </MDTypography>
+              <MDTypography variant="caption" fontWeight="bold" color="text" textTransform="uppercase">{title}</MDTypography>
+              <MDTypography variant="h4" fontWeight="bold">{value}</MDTypography>
           </MDBox>
-          <MDBox
-            variant="gradient"
-            bgColor={color}
-            color="white"
-            width="3rem"
-            height="3rem"
-            borderRadius="md"
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
-            shadow="md"
-          >
+          <MDBox variant="gradient" bgColor={color} color="white" width="3rem" height="3rem" borderRadius="md" display="flex" justifyContent="center" alignItems="center">
               <Icon fontSize="medium" color="inherit">{icon}</Icon>
           </MDBox>
       </MDBox>
@@ -65,7 +49,7 @@ const StatCard = ({ title, value, icon, color }) => (
 );
 
 // ==============================
-// 1. ADMIN DASHBOARD (CLEAN UI)
+// 1. ADMIN DASHBOARD
 // ==============================
 const AdminDashboard = ({ activeTab }) => {
     const [employeeAttendance, setEmployeeAttendance] = useState([]);
@@ -101,36 +85,23 @@ const AdminDashboard = ({ activeTab }) => {
       <MDBox mt={2}>
           {activeTab === 0 && (
             <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                    <StatCard title="Team Present" value={employeeAttendance.length} icon="groups" color="info" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <StatCard title="Pending Leaves" value={leaveRequests.length} icon="event_busy" color="warning" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <StatCard title="System Status" value="Online" icon="sensors" color="success" />
-                </Grid>
+                <Grid item xs={12} md={4}><StatCard title="Team Present" value={employeeAttendance.length} icon="groups" color="info" /></Grid>
+                <Grid item xs={12} md={4}><StatCard title="Pending Leaves" value={leaveRequests.length} icon="event_busy" color="warning" /></Grid>
+                <Grid item xs={12} md={4}><StatCard title="System Status" value="Online" icon="sensors" color="success" /></Grid>
                 <Grid item xs={12}>
                     <Card sx={{ border: "1px solid #e0e0e0", boxShadow: "none" }}>
                         <MDBox p={3}>
                             <MDBox display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                                 <MDTypography variant="h6" fontWeight="bold">Live Attendance Log</MDTypography>
-                                <MDButton variant="outlined" color="info" size="small" onClick={fetchAdminData}>Refresh List</MDButton>
+                                <MDButton variant="outlined" color="info" size="small" onClick={fetchAdminData}>Refresh</MDButton>
                             </MDBox>
                             <List>
                                 {employeeAttendance.length === 0 && <MDTypography variant="button" color="text">No one has checked in yet today.</MDTypography>}
                                 {employeeAttendance.map((emp, i) => (
-                                  <ListItem key={i} sx={{ px: 0, py: 1.5, borderBottom: "1px solid #f0f0f0" }}>
-                                      <ListItemAvatar>
-                                          <Avatar sx={{ bgcolor: "#344767", fontSize: "14px" }}>{emp.email ? emp.email[0].toUpperCase() : "U"}</Avatar>
-                                      </ListItemAvatar>
-                                      <ListItemText
-                                        primary={<MDTypography variant="button" fontWeight="bold">{emp.email}</MDTypography>}
-                                        secondary={<MDTypography variant="caption">Checked in: {emp.checkInTime || "Today"}</MDTypography>}
-                                      />
-                                      <MDBox bgColor="success" borderRadius="sm" px={1.5} py={0.5}>
-                                          <MDTypography variant="caption" color="white" fontWeight="bold">PRESENT</MDTypography>
-                                      </MDBox>
+                                  <ListItem key={i} sx={{ px: 0, py: 1, borderBottom: "1px solid #f0f0f0" }}>
+                                      <ListItemAvatar><Avatar sx={{ bgcolor: "#344767", fontSize: "14px" }}>{emp.email ? emp.email[0].toUpperCase() : "U"}</Avatar></ListItemAvatar>
+                                      <ListItemText primary={<MDTypography variant="button" fontWeight="bold">{emp.email}</MDTypography>} />
+                                      <MDBox bgColor="success" borderRadius="sm" px={1.5} py={0.5}><MDTypography variant="caption" color="white" fontWeight="bold">PRESENT</MDTypography></MDBox>
                                   </ListItem>
                                 ))}
                             </List>
@@ -139,24 +110,18 @@ const AdminDashboard = ({ activeTab }) => {
                 </Grid>
             </Grid>
           )}
-
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12}>
                     <Card sx={{ border: "1px solid #e0e0e0", boxShadow: "none" }}>
                         <MDBox p={3}>
                             <MDTypography variant="h6" fontWeight="bold" mb={3}>Pending Leave Approvals</MDTypography>
-                            {leaveRequests.length === 0 ? (
-                              <MDTypography variant="button" color="text">Clear! No pending requests.</MDTypography>
-                            ) : (
+                            {leaveRequests.length === 0 ? <MDTypography variant="button" color="text">No pending requests.</MDTypography> : (
                               <Grid container spacing={2}>
                                   {leaveRequests.map((req) => (
                                     <Grid item xs={12} key={req.id}>
                                         <MDBox p={2} sx={{ bgcolor: "#f8f9fa", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <MDBox>
-                                                <MDTypography variant="button" fontWeight="bold" display="block">{req.email}</MDTypography>
-                                                <MDTypography variant="caption" color="text">{req.reason}</MDTypography>
-                                            </MDBox>
+                                            <MDBox><MDTypography variant="button" fontWeight="bold" display="block">{req.email}</MDTypography><MDTypography variant="caption" color="text">{req.reason}</MDTypography></MDBox>
                                             <MDBox display="flex" gap={1}>
                                                 <MDButton variant="gradient" color="success" size="small" onClick={() => handleLeaveAction(req.id, 'approve')}>Approve</MDButton>
                                                 <MDButton variant="outlined" color="error" size="small" onClick={() => handleLeaveAction(req.id, 'reject')}>Reject</MDButton>
@@ -176,7 +141,7 @@ const AdminDashboard = ({ activeTab }) => {
 };
 
 // ==============================
-// 2. STAFF DASHBOARD (CUSTOM UI)
+// 2. STAFF DASHBOARD
 // ==============================
 const StaffDashboard = ({ activeTab, user }) => {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -218,15 +183,16 @@ const StaffDashboard = ({ activeTab, user }) => {
                     setIsCheckedIn(false);
                     setCheckInTime(null);
                     localStorage.removeItem("checkInTime");
-                    Swal.fire("Success", "Work day ended!", "success");
+                    Swal.fire("Success", "Checked out!", "success");
                 }
+            } else {
+                Swal.fire("Info", "Check-in failed or already recorded.", "info");
             }
         } catch (e) { Swal.fire("Error", "Server error", "error"); }
     };
 
     const handleApplyLeave = async (e) => {
         e.preventDefault();
-        if (!leaveDate) return Swal.fire("Error", "Date is required", "warning");
         const token = localStorage.getItem("token");
         try {
             const res = await fetch(`${API_URL}/leaves/apply`, {
@@ -237,10 +203,10 @@ const StaffDashboard = ({ activeTab, user }) => {
             if (res.ok) {
                 const newLeave = await res.json();
                 setMyLeaveHistory([newLeave, ...myLeaveHistory]);
-                Swal.fire("Sent", "Request submitted to admin", "success");
+                Swal.fire("Sent", "Request submitted", "success");
                 setLeaveDate(""); setLeaveReason("");
             }
-        } catch (err) { Swal.fire("Error", "Network error", "error"); }
+        } catch (err) { Swal.fire("Error", "Failed to apply", "error"); }
     };
 
     return (
@@ -249,51 +215,32 @@ const StaffDashboard = ({ activeTab, user }) => {
             <Grid container spacing={3} justifyContent="center">
                 <Grid item xs={12} md={6}>
                     <Card sx={{ p: 5, textAlign: "center", border: "1px solid #e0e0e0", boxShadow: "none" }}>
-                        <MDTypography variant="h5" fontWeight="bold" mb={1}>Time Tracker</MDTypography>
-                        <MDTypography variant="caption" color="text" mb={4} display="block">Log your daily presence below</MDTypography>
-                        <MDBox display="flex" justifyContent="center" mb={3}>
+                        <MDTypography variant="h5" fontWeight="bold" mb={1}>Daily Attendance</MDTypography>
+                        <MDBox display="flex" justifyContent="center" my={4}>
                             <MDButton
                               variant="gradient"
                               color={isCheckedIn ? "warning" : "info"}
-                              sx={{ width: 180, height: 180, borderRadius: "50%", fontSize: "1.2rem", fontWeight: "bold" }}
+                              sx={{ width: 160, height: 160, borderRadius: "50%", fontSize: "1.1rem" }}
                               onClick={handleAttendance}
                             >
                                 {isCheckedIn ? "CHECK OUT" : "CHECK IN"}
                             </MDButton>
                         </MDBox>
-                        {isCheckedIn && (
-                          <MDBox bgColor="success" borderRadius="lg" p={1} sx={{ display: "inline-block" }}>
-                              <MDTypography variant="button" color="white" fontWeight="bold">Active Since {checkInTime}</MDTypography>
-                          </MDBox>
-                        )}
+                        {isCheckedIn && <MDBox bgColor="success" borderRadius="lg" p={1} sx={{ display: "inline-block" }}><MDTypography variant="button" color="white" fontWeight="bold">Active Since {checkInTime}</MDTypography></MDBox>}
                     </Card>
                 </Grid>
             </Grid>
           )}
-
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12} md={7}>
                     <Card sx={{ p: 3, border: "1px solid #e0e0e0", boxShadow: "none" }}>
-                        <MDTypography variant="h6" fontWeight="bold" mb={3}>Leave Request</MDTypography>
+                        <MDTypography variant="h6" fontWeight="bold" mb={2}>Apply for Leave</MDTypography>
                         <MDBox component="form" onSubmit={handleApplyLeave}>
                             <MDInput type="date" fullWidth value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} sx={{mb: 2}} />
-                            <MDInput label="Reason for Leave" multiline rows={4} fullWidth value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} sx={{mb: 3}} />
-                            <MDButton variant="gradient" color="dark" fullWidth type="submit">Submit Request</MDButton>
+                            <MDInput label="Reason" multiline rows={4} fullWidth value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} sx={{mb: 3}} />
+                            <MDButton variant="gradient" color="dark" fullWidth type="submit">Submit</MDButton>
                         </MDBox>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} md={5}>
-                    <Card sx={{ p: 3, border: "1px solid #e0e0e0", boxShadow: "none", height: "100%" }}>
-                        <MDTypography variant="h6" fontWeight="bold" mb={3}>Request History</MDTypography>
-                        {myLeaveHistory.length === 0 ? <MDTypography variant="caption">No history found.</MDTypography> : (
-                          myLeaveHistory.map((item, i) => (
-                            <MDBox key={i} p={1.5} mb={1} sx={{ bgcolor: "#f8f9fa", borderRadius: "8px", borderLeft: "4px solid #344767" }}>
-                                <MDTypography variant="button" fontWeight="bold" display="block">{item.startDate}</MDTypography>
-                                <MDTypography variant="caption" color={item.status === 'PENDING' ? 'warning' : 'success'}>{item.status}</MDTypography>
-                            </MDBox>
-                          ))
-                        )}
                     </Card>
                 </Grid>
             </Grid>
@@ -303,7 +250,7 @@ const StaffDashboard = ({ activeTab, user }) => {
 };
 
 // ==============================
-// 3. MAIN PROFILE CONTAINER
+// 3. MAIN PROFILE
 // ==============================
 function Profile() {
     const [activeTab, setActiveTab] = useState(0);
@@ -314,10 +261,8 @@ function Profile() {
         const storedUser = JSON.parse(localStorage.getItem("user"));
         const storedRole = localStorage.getItem("role");
         if (!storedUser) { navigate("/authentication/sign-in"); return; }
-
         let finalRole = (storedRole || storedUser.role || "staff").toLowerCase();
-        if (storedUser.email && storedUser.email.toLowerCase().includes("admin")) finalRole = "admin";
-
+        if (storedUser.email?.toLowerCase().includes("admin")) finalRole = "admin";
         setUser({ ...storedUser, role: finalRole });
     }, [navigate]);
 
@@ -327,26 +272,22 @@ function Profile() {
       <DashboardLayout>
           <DashboardNavbar />
           <MDBox mb={2} />
+          {/* ✅ UPDATED HEADER: No mountains, just clean professional tech theme */}
           <MDBox position="relative" mb={5}>
               <MDBox
                 display="flex"
                 alignItems="center"
                 position="relative"
-                minHeight="15rem"
+                minHeight="12rem"
                 borderRadius="xl"
                 sx={{
-                    backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${backgroundImage})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "50%"
+                    background: "linear-gradient(135deg, #1a237e 0%, #344767 100%)",
+                    boxShadow: "inset 0 0 100px rgba(0,0,0,0.2)"
                 }}
               />
               <Card sx={{ position: "relative", mt: -8, mx: 3, py: 3, px: 3, border: "1px solid #e0e0e0", boxShadow: "none" }}>
                   <Grid container spacing={3} alignItems="center">
-                      <Grid item>
-                          <Avatar sx={{ width: 80, height: 80, bgcolor: "#344767", fontSize: "2rem" }}>
-                              {user.fullName ? user.fullName[0].toUpperCase() : "U"}
-                          </Avatar>
-                      </Grid>
+                      <Grid item><Avatar sx={{ width: 70, height: 70, bgcolor: "#344767", fontSize: "1.8rem" }}>{user.fullName ? user.fullName[0].toUpperCase() : "U"}</Avatar></Grid>
                       <Grid item>
                           <MDBox lineHeight={1}>
                               <MDTypography variant="h4" fontWeight="bold">{user.fullName}</MDTypography>
@@ -370,33 +311,8 @@ function Profile() {
                   </Grid>
               </Card>
           </MDBox>
-
           <MDBox mb={5}>
               {user.role === 'admin' ? <AdminDashboard activeTab={activeTab} /> : <StaffDashboard activeTab={activeTab} user={user} />}
-
-              {activeTab === 2 && (
-                <Card sx={{ border: "1px solid #e0e0e0", boxShadow: "none" }}>
-                    <MDBox p={4}>
-                        <MDTypography variant="h6" fontWeight="bold" mb={4}>Account Settings</MDTypography>
-                        <Grid container spacing={4}>
-                            <Grid item xs={12} md={6}>
-                                <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>BASIC INFORMATION</MDTypography>
-                                <MDInput label="Display Name" value={user.fullName} fullWidth sx={{mb:2}} />
-                                <MDInput label="Email Address" value={user.email} fullWidth disabled />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                                <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>SECURITY</MDTypography>
-                                <MDInput label="New Password" type="password" fullWidth placeholder="Keep blank to remain unchanged" sx={{mb: 2}} />
-                                <MDBox display="flex" alignItems="center"><Switch defaultChecked /><MDTypography variant="button" color="text" ml={1}>Notification Alerts</MDTypography></MDBox>
-                            </Grid>
-                            <Grid item xs={12} textAlign="right">
-                                <Divider sx={{my: 3}} />
-                                <MDButton variant="gradient" color="info">Update Settings</MDButton>
-                            </Grid>
-                        </Grid>
-                    </MDBox>
-                </Card>
-              )}
           </MDBox>
           <Footer />
       </DashboardLayout>
