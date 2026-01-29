@@ -50,18 +50,31 @@ const AdminDashboard = ({ activeTab }) => {
     }, []);
 
     const fetchAdminData = async () => {
+        const token = localStorage.getItem("token"); // ✅ GET TOKEN
         try {
-            const attRes = await fetch(`${API_URL}/attendance/today`);
+            // 1. Get Today's Attendance
+            const attRes = await fetch(`${API_URL}/attendance/today`, {
+                headers: { 'Authorization': `Bearer ${token}` } // ✅ SEND TOKEN
+            });
             if (attRes.ok) setEmployeeAttendance(await attRes.json());
 
-            const leaveRes = await fetch(`${API_URL}/leaves/pending`);
+            // 2. Get Pending Leaves
+            const leaveRes = await fetch(`${API_URL}/leaves/pending`, {
+                headers: { 'Authorization': `Bearer ${token}` } // ✅ SEND TOKEN
+            });
             if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
-        } catch (error) { console.error("Backend Error:", error); }
+        } catch (error) {
+            console.error("Backend Error:", error);
+        }
     };
 
     const handleLeaveAction = async (id, status) => {
+        const token = localStorage.getItem("token");
         try {
-            const res = await fetch(`${API_URL}/leaves/${id}/${status}`, { method: 'PUT' });
+            const res = await fetch(`${API_URL}/leaves/${id}/${status}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` } // ✅ SEND TOKEN
+            });
             if (res.ok) {
                 Swal.fire("Success", `Request ${status}d`, "success");
                 fetchAdminData();
@@ -136,6 +149,7 @@ const StaffDashboard = ({ activeTab, user }) => {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
     const [checkInTime, setCheckInTime] = useState(null);
 
+    // LEAVE STATE
     const [leaveDate, setLeaveDate] = useState("");
     const [leaveReason, setLeaveReason] = useState("");
     const [myLeaveHistory, setMyLeaveHistory] = useState([]);
@@ -157,12 +171,17 @@ const StaffDashboard = ({ activeTab, user }) => {
     const handleAttendance = async () => {
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const todayDate = new Date().toLocaleDateString();
+        const token = localStorage.getItem("token"); // ✅ GET TOKEN
 
         if (isCheckedIn) {
+            // --- CHECK OUT ---
             try {
                 const res = await fetch(`${API_URL}/attendance/check-out`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` // ✅ SEND TOKEN
+                    },
                     body: JSON.stringify({ email: user.email })
                 });
 
@@ -175,11 +194,16 @@ const StaffDashboard = ({ activeTab, user }) => {
                     Swal.fire("Error", "Check-out failed", "error");
                 }
             } catch (e) { Swal.fire("Error", "Network Error", "error"); }
+
         } else {
+            // --- CHECK IN ---
             try {
                 const res = await fetch(`${API_URL}/attendance/check-in`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` // ✅ SEND TOKEN
+                    },
                     body: JSON.stringify({ email: user.email, name: user.fullName })
                 });
 
@@ -194,14 +218,20 @@ const StaffDashboard = ({ activeTab, user }) => {
                     Swal.fire("Info", text, "info");
                     setIsCheckedIn(true);
                 }
-            } catch (e) { Swal.fire("Error", "Could not connect to server", "error"); }
+            } catch (e) {
+                console.error(e);
+                Swal.fire("Error", "Could not connect to server", "error");
+            }
         }
     };
 
     const handleApplyLeave = async (e) => {
         e.preventDefault();
         if (!leaveDate) return Swal.fire("Error", "Select a date", "warning");
+        const token = localStorage.getItem("token");
 
+        // NOTE: If you have a real backend endpoint for leaves, fetch here.
+        // For now, we simulate success visually
         setMyLeaveHistory([{ date: leaveDate, reason: leaveReason, status: "Pending" }, ...myLeaveHistory]);
         Swal.fire("Sent", "Leave request sent.", "success");
         setLeaveDate(""); setLeaveReason("");
@@ -259,16 +289,15 @@ function Profile() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        // 🛡️ SECURITY CHECK: Redirect if not logged in
         const storedUser = JSON.parse(localStorage.getItem("user"));
+        const storedRole = localStorage.getItem("role");
+
         if (!storedUser) {
             navigate("/authentication/sign-in");
             return;
         }
 
-        const storedRole = localStorage.getItem("role");
         let finalRole = "staff";
-
         if (storedRole && storedRole.toLowerCase() === "admin") finalRole = "admin";
         if (storedUser.role && storedUser.role.toLowerCase() === "admin") finalRole = "admin";
         if (storedUser.email && storedUser.email.toLowerCase().includes("admin")) finalRole = "admin";
