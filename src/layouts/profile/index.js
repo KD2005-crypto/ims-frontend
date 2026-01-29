@@ -50,17 +50,15 @@ const AdminDashboard = ({ activeTab }) => {
     }, []);
 
     const fetchAdminData = async () => {
-        const token = localStorage.getItem("token"); // ✅ GET TOKEN
+        const token = localStorage.getItem("token");
         try {
-            // 1. Get Today's Attendance
             const attRes = await fetch(`${API_URL}/attendance/today`, {
-                headers: { 'Authorization': `Bearer ${token}` } // ✅ SEND TOKEN
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             if (attRes.ok) setEmployeeAttendance(await attRes.json());
 
-            // 2. Get Pending Leaves
             const leaveRes = await fetch(`${API_URL}/leaves/pending`, {
-                headers: { 'Authorization': `Bearer ${token}` } // ✅ SEND TOKEN
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
         } catch (error) {
@@ -71,9 +69,10 @@ const AdminDashboard = ({ activeTab }) => {
     const handleLeaveAction = async (id, status) => {
         const token = localStorage.getItem("token");
         try {
-            const res = await fetch(`${API_URL}/leaves/${id}/${status}`, {
+            // Updated to match backend PutMapping("/{id}/status")
+            const res = await fetch(`${API_URL}/leaves/${id}/status?status=${status}`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` } // ✅ SEND TOKEN
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
                 Swal.fire("Success", `Request ${status}d`, "success");
@@ -84,7 +83,6 @@ const AdminDashboard = ({ activeTab }) => {
 
     return (
       <MDBox mt={2}>
-          {/* TAB 0: ATTENDANCE */}
           {activeTab === 0 && (
             <Grid container spacing={3}>
                 <Grid item xs={12} md={8}>
@@ -97,9 +95,9 @@ const AdminDashboard = ({ activeTab }) => {
                             {employeeAttendance.length === 0 && <MDTypography variant="caption">No records today.</MDTypography>}
                             {employeeAttendance.map((emp, i) => (
                               <ListItem key={i} divider>
-                                  <ListItemAvatar><Avatar>{emp.name ? emp.name[0] : "U"}</Avatar></ListItemAvatar>
-                                  <ListItemText primary={emp.name || "Unknown"} secondary={emp.status} />
-                                  <MDBox bgColor={emp.status === "Present" ? "success" : "error"} borderRadius="lg" px={1}>
+                                  <ListItemAvatar><Avatar>{emp.email ? emp.email[0].toUpperCase() : "U"}</Avatar></ListItemAvatar>
+                                  <ListItemText primary={emp.email || "Unknown"} secondary={emp.status} />
+                                  <MDBox bgColor={emp.status === "PRESENT" ? "success" : "error"} borderRadius="lg" px={1}>
                                       <MDTypography variant="caption" color="white" fontWeight="bold">{emp.status}</MDTypography>
                                   </MDBox>
                               </ListItem>
@@ -117,7 +115,6 @@ const AdminDashboard = ({ activeTab }) => {
             </Grid>
           )}
 
-          {/* TAB 1: APPROVALS */}
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12}><Card><MDBox p={3}>
@@ -126,7 +123,8 @@ const AdminDashboard = ({ activeTab }) => {
                       <List>
                           {leaveRequests.map((req) => (
                             <ListItem key={req.id} divider>
-                                <ListItemText primary={req.name} secondary={req.reason} />
+                                {/* ✅ FIXED: Shows email since that is what we have in backend */}
+                                <ListItemText primary={req.email} secondary={req.reason} />
                                 <MDBox display="flex" gap={1}>
                                     <MDButton size="small" color="success" onClick={() => handleLeaveAction(req.id, 'approve')}>Approve</MDButton>
                                     <MDButton size="small" color="error" onClick={() => handleLeaveAction(req.id, 'reject')}>Reject</MDButton>
@@ -149,7 +147,6 @@ const StaffDashboard = ({ activeTab, user }) => {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
     const [checkInTime, setCheckInTime] = useState(null);
 
-    // LEAVE STATE
     const [leaveDate, setLeaveDate] = useState("");
     const [leaveReason, setLeaveReason] = useState("");
     const [myLeaveHistory, setMyLeaveHistory] = useState([]);
@@ -171,16 +168,15 @@ const StaffDashboard = ({ activeTab, user }) => {
     const handleAttendance = async () => {
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const todayDate = new Date().toLocaleDateString();
-        const token = localStorage.getItem("token"); // ✅ GET TOKEN
+        const token = localStorage.getItem("token");
 
         if (isCheckedIn) {
-            // --- CHECK OUT ---
             try {
                 const res = await fetch(`${API_URL}/attendance/check-out`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` // ✅ SEND TOKEN
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({ email: user.email })
                 });
@@ -190,21 +186,18 @@ const StaffDashboard = ({ activeTab, user }) => {
                     setCheckInTime(null);
                     localStorage.removeItem("checkInTime");
                     Swal.fire("Success", "Checked Out Successfully!", "success");
-                } else {
-                    Swal.fire("Error", "Check-out failed", "error");
                 }
             } catch (e) { Swal.fire("Error", "Network Error", "error"); }
 
         } else {
-            // --- CHECK IN ---
             try {
                 const res = await fetch(`${API_URL}/attendance/check-in`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` // ✅ SEND TOKEN
+                        'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ email: user.email, name: user.fullName })
+                    body: JSON.stringify({ email: user.email })
                 });
 
                 if (res.ok) {
@@ -219,22 +212,43 @@ const StaffDashboard = ({ activeTab, user }) => {
                     setIsCheckedIn(true);
                 }
             } catch (e) {
-                console.error(e);
                 Swal.fire("Error", "Could not connect to server", "error");
             }
         }
     };
 
+    // ✅ FIXED: Now actually sends data to your LeaveController
     const handleApplyLeave = async (e) => {
         e.preventDefault();
         if (!leaveDate) return Swal.fire("Error", "Select a date", "warning");
         const token = localStorage.getItem("token");
 
-        // NOTE: If you have a real backend endpoint for leaves, fetch here.
-        // For now, we simulate success visually
-        setMyLeaveHistory([{ date: leaveDate, reason: leaveReason, status: "Pending" }, ...myLeaveHistory]);
-        Swal.fire("Sent", "Leave request sent.", "success");
-        setLeaveDate(""); setLeaveReason("");
+        try {
+            const res = await fetch(`${API_URL}/leaves/apply`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    email: user.email,
+                    reason: leaveReason,
+                    startDate: leaveDate,
+                    endDate: leaveDate
+                })
+            });
+
+            if (res.ok) {
+                const newLeave = await res.json();
+                setMyLeaveHistory([newLeave, ...myLeaveHistory]);
+                Swal.fire("Sent", "Leave request sent to admin.", "success");
+                setLeaveDate(""); setLeaveReason("");
+            } else {
+                Swal.fire("Error", "Failed to send request", "error");
+            }
+        } catch (err) {
+            Swal.fire("Error", "Network error", "error");
+        }
     };
 
     return (
@@ -271,7 +285,7 @@ const StaffDashboard = ({ activeTab, user }) => {
                 <Grid item xs={12} md={5}><Card><MDBox p={3}>
                     <MDTypography variant="h6">My History</MDTypography>
                     {myLeaveHistory.map((item, i) => (
-                      <MDBox key={i} p={1} mb={1} bgColor="grey-100"><MDTypography variant="caption">{item.date} - {item.status}</MDTypography></MDBox>
+                      <MDBox key={i} p={1} mb={1} bgColor="grey-100"><MDTypography variant="caption">{item.startDate} - {item.status}</MDTypography></MDBox>
                     ))}
                 </MDBox></Card></Grid>
             </Grid>
@@ -299,8 +313,7 @@ function Profile() {
 
         let finalRole = "staff";
         if (storedRole && storedRole.toLowerCase() === "admin") finalRole = "admin";
-        if (storedUser.role && storedUser.role.toLowerCase() === "admin") finalRole = "admin";
-        if (storedUser.email && storedUser.email.toLowerCase().includes("admin")) finalRole = "admin";
+        else if (storedUser.role && storedUser.role.toLowerCase() === "admin") finalRole = "admin";
 
         setUser({ ...storedUser, role: finalRole });
     }, [navigate]);
@@ -328,7 +341,7 @@ function Profile() {
                           <AppBar position="static">
                               <Tabs orientation="horizontal" value={activeTab} onChange={handleTabChange}>
                                   <Tab label="Workspace" icon={<Icon>work</Icon>} />
-                                  <Tab label={user.role === 'admin' ? "Approvals" : "Messages"} icon={<Icon>email</Icon>} />
+                                  <Tab label={user.role === 'admin' ? "Approvals" : "Leave"} icon={<Icon>email</Icon>} />
                                   <Tab label="Settings" icon={<Icon>settings</Icon>} />
                               </Tabs>
                           </AppBar>
