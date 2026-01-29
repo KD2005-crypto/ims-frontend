@@ -18,13 +18,17 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
+// ✅ CONFIG: Backend URL (Centralized for safety)
+const API_BASE_URL = "https://ims-backend-production-e15c.up.railway.app/api";
+
 function ManageEstimates() {
+  // ✅ FIX 1: Ensure initial state is ALWAYS an array
   const [estimates, setEstimates] = useState([]);
   const [chains, setChains] = useState([]);
   const [groups, setGroups] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  // Form State - Restored to original multi-field logic
+  // Form State
   const [selectedChainId, setSelectedChainId] = useState("");
   const [selectedGroupName, setSelectedGroupName] = useState("");
   const [selectedBrandName, setSelectedBrandName] = useState("");
@@ -43,25 +47,41 @@ function ManageEstimates() {
 
   const fetchDropdownData = async () => {
     try {
-      const chainsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/chains");
-      const groupsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/groups");
-      const brandsRes = await fetch("https://ims-backend-production-e15c.up.railway.app/api/brands");
-      setChains(await chainsRes.json());
-      setGroups(await groupsRes.json());
-      setBrands(await brandsRes.json());
+      const chainsRes = await fetch(`${API_BASE_URL}/chains`);
+      const groupsRes = await fetch(`${API_BASE_URL}/groups`);
+      const brandsRes = await fetch(`${API_BASE_URL}/brands`);
+
+      // Safety checks for dropdowns too
+      const cData = await chainsRes.json();
+      const gData = await groupsRes.json();
+      const bData = await brandsRes.json();
+
+      setChains(Array.isArray(cData) ? cData : []);
+      setGroups(Array.isArray(gData) ? gData : []);
+      setBrands(Array.isArray(bData) ? bData : []);
     } catch (err) { console.error("Dropdown loading error:", err); }
   };
 
   const fetchEstimates = async () => {
     try {
-      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates");
+      const response = await fetch(`${API_BASE_URL}/estimates`);
       const data = await response.json();
-      setEstimates(data);
-    } catch (err) { console.error("Estimate fetch error:", err); }
+
+      // ✅ FIX 2: THE CRASH STOPPER
+      // If the backend sends an error (Object), we ignore it and use []
+      if (Array.isArray(data)) {
+        setEstimates(data);
+      } else {
+        console.error("Backend returned non-array (likely 500 error):", data);
+        setEstimates([]); // Keeps the page alive!
+      }
+    } catch (err) {
+      console.error("Estimate fetch error:", err);
+      setEstimates([]);
+    }
   };
 
   const handleCreateEstimate = async () => {
-    // Validation: Ensures no estimate is created without core details
     if (!selectedChainId || !service || !qty || !costPerUnit || !selectedGroupName) {
       Swal.fire({ icon: 'warning', title: 'Missing Info', text: 'Please select Group, Client, and fill Service details.' });
       return;
@@ -81,7 +101,7 @@ function ManageEstimates() {
     };
 
     try {
-      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/estimates", {
+      const response = await fetch(`${API_BASE_URL}/estimates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -89,9 +109,10 @@ function ManageEstimates() {
 
       if (response.ok) {
         Swal.fire({ icon: 'success', title: 'Estimate Saved!', timer: 2000, showConfirmButton: false });
-        // Reset only service-specific fields so user can create another for the same group/client quickly
         setService(""); setQty(""); setCostPerUnit("");
         fetchEstimates();
+      } else {
+        Swal.fire({ icon: 'error', title: 'Save Failed', text: 'Backend rejected the data.' });
       }
     } catch (err) { console.error("Submission error:", err); }
   };
@@ -105,7 +126,7 @@ function ManageEstimates() {
       confirmButtonColor: '#d33'
     });
     if (result.isConfirmed) {
-      await fetch(`https://ims-backend-production-e15c.up.railway.app/api/estimates/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE_URL}/estimates/${id}`, { method: "DELETE" });
       fetchEstimates();
       Swal.fire('Deleted!', '', 'success');
     }
@@ -123,7 +144,6 @@ function ManageEstimates() {
               </MDBox>
               <MDBox p={3}>
                 <Grid container spacing={2}>
-                  {/* --- DROPDOWNS RESTORED --- */}
                   <Grid item xs={12} md={3}>
                     <FormControl fullWidth><InputLabel>Select Group</InputLabel>
                       <Select value={selectedGroupName} label="Select Group" onChange={(e) => setSelectedGroupName(e.target.value)} sx={{ height: "45px" }}>
@@ -174,14 +194,14 @@ function ManageEstimates() {
             </Card>
           </Grid>
 
-          {/* --- TABLE RESTORED --- */}
           <Grid item xs={12}>
             <Card>
               <MDBox mx={2} mt={-3} py={3} px={2} variant="gradient" bgColor="dark" borderRadius="lg" coloredShadow="dark">
                 <MDTypography variant="h6" color="white">Existing Estimates</MDTypography>
               </MDBox>
               <MDBox pt={3} px={3} pb={2}>
-                {estimates.map((est) => (
+                {/* ✅ FIX 3: Safe Mapping. This will never crash even if 'estimates' is empty. */}
+                {Array.isArray(estimates) && estimates.map((est) => (
                   <MDBox key={est.estimatedId} display="flex" justifyContent="space-between" alignItems="center" p={2} mb={1} sx={{ borderBottom: "1px solid #f0f2f5" }}>
                     <MDBox>
                       <MDTypography variant="button" fontWeight="bold" display="block">{est.service} (Qty: {est.qty})</MDTypography>
@@ -196,7 +216,7 @@ function ManageEstimates() {
                     <MDButton variant="text" color="error" onClick={() => handleDeleteEstimate(est.estimatedId)}><Icon>delete</Icon></MDButton>
                   </MDBox>
                 ))}
-                {estimates.length === 0 && <MDTypography p={2} variant="caption">No records found.</MDTypography>}
+                {(!Array.isArray(estimates) || estimates.length === 0) && <MDTypography p={2} variant="caption">No records found (or server error).</MDTypography>}
               </MDBox>
             </Card>
           </Grid>
