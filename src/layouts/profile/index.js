@@ -185,8 +185,6 @@ const StaffDashboard = ({ activeTab, user }) => {
                     localStorage.removeItem("checkInTime");
                     Swal.fire("Success", "Checked out!", "success");
                 }
-            } else {
-                Swal.fire("Info", "Check-in failed or already recorded.", "info");
             }
         } catch (e) { Swal.fire("Error", "Server error", "error"); }
     };
@@ -211,6 +209,7 @@ const StaffDashboard = ({ activeTab, user }) => {
 
     return (
       <MDBox mt={2}>
+          {/* ✅ WORK TAB ONLY */}
           {activeTab === 0 && (
             <Grid container spacing={3} justifyContent="center">
                 <Grid item xs={12} md={6}>
@@ -231,6 +230,8 @@ const StaffDashboard = ({ activeTab, user }) => {
                 </Grid>
             </Grid>
           )}
+
+          {/* ✅ LEAVE TAB ONLY */}
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12} md={7}>
@@ -239,7 +240,7 @@ const StaffDashboard = ({ activeTab, user }) => {
                         <MDBox component="form" onSubmit={handleApplyLeave}>
                             <MDInput type="date" fullWidth value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} sx={{mb: 2}} />
                             <MDInput label="Reason" multiline rows={4} fullWidth value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} sx={{mb: 3}} />
-                            <MDButton variant="gradient" color="dark" fullWidth type="submit">Submit</MDButton>
+                            <MDButton variant="gradient" color="dark" fullWidth type="submit">Submit Request</MDButton>
                         </MDBox>
                     </Card>
                 </Grid>
@@ -272,7 +273,6 @@ function Profile() {
       <DashboardLayout>
           <DashboardNavbar />
           <MDBox mb={2} />
-          {/* ✅ UPDATED HEADER: No mountains, just clean professional tech theme */}
           <MDBox position="relative" mb={5}>
               <MDBox
                 display="flex"
@@ -311,8 +311,37 @@ function Profile() {
                   </Grid>
               </Card>
           </MDBox>
+
           <MDBox mb={5}>
-              {user.role === 'admin' ? <AdminDashboard activeTab={activeTab} /> : <StaffDashboard activeTab={activeTab} user={user} />}
+              {/* CONTENT SWITCHING LOGIC */}
+              {activeTab !== 2 && (
+                user.role === 'admin' ? <AdminDashboard activeTab={activeTab} /> : <StaffDashboard activeTab={activeTab} user={user} />
+              )}
+
+              {/* ✅ ACCOUNT SETTINGS TAB (Was missing content!) */}
+              {activeTab === 2 && (
+                <Card sx={{ border: "1px solid #e0e0e0", boxShadow: "none" }}>
+                    <MDBox p={4}>
+                        <MDTypography variant="h6" fontWeight="bold" mb={4}>Account Settings</MDTypography>
+                        <Grid container spacing={4}>
+                            <Grid item xs={12} md={6}>
+                                <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>BASIC INFORMATION</MDTypography>
+                                <MDInput label="Display Name" value={user.fullName} fullWidth sx={{mb:2}} />
+                                <MDInput label="Email Address" value={user.email} fullWidth disabled />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>SECURITY</MDTypography>
+                                <MDInput label="New Password" type="password" fullWidth placeholder="Keep blank to remain unchanged" sx={{mb: 2}} />
+                                <MDBox display="flex" alignItems="center"><Switch defaultChecked /><MDTypography variant="button" color="text" ml={1}>Notification Alerts</MDTypography></MDBox>
+                            </Grid>
+                            <Grid item xs={12} textAlign="right">
+                                <Divider sx={{my: 3}} />
+                                <MDButton variant="gradient" color="info">Update Settings</MDButton>
+                            </Grid>
+                        </Grid>
+                    </MDBox>
+                </Card>
+              )}
           </MDBox>
           <Footer />
       </DashboardLayout>
