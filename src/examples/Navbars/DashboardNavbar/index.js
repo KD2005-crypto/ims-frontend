@@ -1,32 +1,21 @@
-/**
- * CORRECT DASHBOARD NAVBAR
- * This is the top bar with the "Home / Dashboard" breadcrumbs and icons.
- */
-
 import { useState, useEffect } from "react";
-
-// react-router components
-import { useLocation, Link } from "react-router-dom";
-
-// prop-types is a library for typechecking of props.
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 
-// @material-ui core components
+// @mui components
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
-import Menu from "@mui/material/Menu";
 import Icon from "@mui/material/Icon";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
-import MDInput from "components/MDInput";
+import MDTypography from "components/MDTypography";
 
 // Material Dashboard 2 React example components
 import Breadcrumbs from "examples/Breadcrumbs";
-import NotificationItem from "examples/Items/NotificationItem";
 
-// Custom styles for DashboardNavbar
+// Custom styles
 import {
   navbar,
   navbarContainer,
@@ -35,22 +24,23 @@ import {
   navbarMobileMenu,
 } from "examples/Navbars/DashboardNavbar/styles";
 
-// Material Dashboard 2 React context
+// Context
 import {
   useMaterialUIController,
   setTransparentNavbar,
   setMiniSidenav,
-  setOpenConfigurator,
 } from "context";
+
+// SweetAlert for a clean logout confirmation
+import Swal from "sweetalert2";
 
 function DashboardNavbar({ absolute, light, isMini }) {
   const [navbarType, setNavbarType] = useState();
   const [controller, dispatch] = useMaterialUIController();
-  const { miniSidenav, transparentNavbar, fixedNavbar, openConfigurator, darkMode } = controller;
-  const [openMenu, setOpenMenu] = useState(false);
+  const { miniSidenav, transparentNavbar, fixedNavbar, darkMode } = controller;
   const route = useLocation().pathname.split("/").slice(1);
+  const navigate = useNavigate();
 
-  // 1. SAFE SCROLL LOGIC
   useEffect(() => {
     if (fixedNavbar) {
       setNavbarType("sticky");
@@ -71,22 +61,24 @@ function DashboardNavbar({ absolute, light, isMini }) {
   }, [dispatch, fixedNavbar, transparentNavbar]);
 
   const handleMiniSidenav = () => setMiniSidenav(dispatch, !miniSidenav);
-  const handleConfiguratorOpen = () => setOpenConfigurator(dispatch, !openConfigurator);
-  const handleOpenMenu = (event) => setOpenMenu(event.currentTarget);
-  const handleCloseMenu = () => setOpenMenu(false);
 
-  const renderMenu = () => (
-      <Menu
-          anchorEl={openMenu}
-          anchorReference={null}
-          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-          open={Boolean(openMenu)}
-          onClose={handleCloseMenu}
-          sx={{ mt: 2 }}
-      >
-        <NotificationItem icon={<Icon>email</Icon>} title="Check new messages" />
-      </Menu>
-  );
+  // ✅ LOGOUT LOGIC: Clears everything and redirects
+  const handleLogout = () => {
+    Swal.fire({
+      title: "Logout?",
+      text: "You will need to sign in again to access your dashboard.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#344767",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, Logout",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        localStorage.clear(); // Wipe token, role, and user data
+        navigate("/authentication/sign-in"); // Send to login
+      }
+    });
+  };
 
   const iconsStyle = ({ palette: { dark, white, text }, functions: { rgba } }) => ({
     color: () => {
@@ -99,67 +91,50 @@ function DashboardNavbar({ absolute, light, isMini }) {
   });
 
   return (
-      <AppBar
-          position={absolute ? "absolute" : navbarType}
-          color="inherit"
-          sx={(theme) => navbar(theme, { transparentNavbar, absolute, light, darkMode })}
-      >
-        <Toolbar sx={(theme) => navbarContainer(theme)}>
-          <MDBox color="inherit" mb={{ xs: 1, md: 0 }} sx={(theme) => navbarRow(theme, { isMini })}>
-            <Breadcrumbs icon="home" title={route[route.length - 1]} route={route} light={light} />
+    <AppBar
+      position={absolute ? "absolute" : navbarType}
+      color="inherit"
+      sx={(theme) => navbar(theme, { transparentNavbar, absolute, light, darkMode })}
+    >
+      <Toolbar sx={(theme) => navbarContainer(theme)}>
+        <MDBox color="inherit" mb={{ xs: 1, md: 0 }} sx={(theme) => navbarRow(theme, { isMini })}>
+          <Breadcrumbs icon="home" title={route[route.length - 1]} route={route} light={light} />
+        </MDBox>
+        {isMini ? null : (
+          <MDBox sx={(theme) => navbarRow(theme, { isMini })}>
+            <MDBox color={light ? "white" : "inherit"} display="flex" alignItems="center">
+
+              {/* ✅ PROFILE BUTTON: Takes you to the attendance/leave page */}
+              <Link to="/profile">
+                <IconButton sx={navbarIconButton} size="small" disableRipple>
+                  <Icon sx={iconsStyle}>account_circle</Icon>
+                </IconButton>
+              </Link>
+
+              {/* ✅ LOGOUT BUTTON: Clean and functional */}
+              <IconButton sx={navbarIconButton} size="small" disableRipple onClick={handleLogout}>
+                <Icon sx={iconsStyle}>logout</Icon>
+                <MDTypography variant="button" fontWeight="medium" color={light ? "white" : "dark"} ml={0.5}>
+                  Logout
+                </MDTypography>
+              </IconButton>
+
+              <IconButton
+                size="small"
+                disableRipple
+                color="inherit"
+                sx={navbarMobileMenu}
+                onClick={handleMiniSidenav}
+              >
+                <Icon sx={iconsStyle} fontSize="medium">
+                  {miniSidenav ? "menu_open" : "menu"}
+                </Icon>
+              </IconButton>
+            </MDBox>
           </MDBox>
-          {isMini ? null : (
-              <MDBox sx={(theme) => navbarRow(theme, { isMini })}>
-                <MDBox pr={1}>
-                  <MDInput label="Search here" />
-                </MDBox>
-                <MDBox color={light ? "white" : "inherit"}>
-
-                  {/* ✅ CHANGED LINK: Now points to /profile instead of sign-in */}
-                  <Link to="/profile">
-                    <IconButton sx={navbarIconButton} size="small" disableRipple>
-                      <Icon sx={iconsStyle}>account_circle</Icon>
-                    </IconButton>
-                  </Link>
-
-                  <IconButton
-                      size="small"
-                      disableRipple
-                      color="inherit"
-                      sx={navbarMobileMenu}
-                      onClick={handleMiniSidenav}
-                  >
-                    <Icon sx={iconsStyle} fontSize="medium">
-                      {miniSidenav ? "menu_open" : "menu"}
-                    </Icon>
-                  </IconButton>
-                  <IconButton
-                      size="small"
-                      disableRipple
-                      color="inherit"
-                      sx={navbarIconButton}
-                      onClick={handleConfiguratorOpen}
-                  >
-                    <Icon sx={iconsStyle}>settings</Icon>
-                  </IconButton>
-                  <IconButton
-                      size="small"
-                      disableRipple
-                      color="inherit"
-                      sx={navbarIconButton}
-                      aria-controls="notification-menu"
-                      aria-haspopup="true"
-                      variant="contained"
-                      onClick={handleOpenMenu}
-                  >
-                    <Icon sx={iconsStyle}>notifications</Icon>
-                  </IconButton>
-                  {renderMenu()}
-                </MDBox>
-              </MDBox>
-          )}
-        </Toolbar>
-      </AppBar>
+        )}
+      </Toolbar>
+    </AppBar>
   );
 }
 

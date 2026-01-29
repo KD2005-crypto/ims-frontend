@@ -16,6 +16,7 @@ import ListItemText from "@mui/material/ListItemText";
 import ListItemAvatar from "@mui/material/ListItemAvatar";
 import Avatar from "@mui/material/Avatar";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
@@ -54,7 +55,7 @@ const ModernCard = ({ children, title, icon, color = "info" }) => (
 );
 
 // ==============================
-// 1. ADMIN DASHBOARD (Fully Synced)
+// 1. ADMIN DASHBOARD
 // ==============================
 const AdminDashboard = ({ activeTab }) => {
     const [employeeAttendance, setEmployeeAttendance] = useState([]);
@@ -63,17 +64,14 @@ const AdminDashboard = ({ activeTab }) => {
     const fetchAdminData = async () => {
         const token = localStorage.getItem("token");
         try {
-            // Sync Attendance
             const attRes = await fetch(`${API_URL}/attendance/today`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (attRes.ok) setEmployeeAttendance(await attRes.json());
 
-            // Sync Pending Leaves
             const leaveRes = await fetch(`${API_URL}/leaves/pending`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
         } catch (error) { console.error("Admin Sync Error"); }
     };
 
-    // ✅ HEARTBEAT: Auto-refresh every 10 seconds for Admin
     useEffect(() => {
         fetchAdminData();
         const interval = setInterval(fetchAdminData, 10000);
@@ -88,7 +86,7 @@ const AdminDashboard = ({ activeTab }) => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                Swal.fire({ title: "Success", text: `Leave ${status}ed`, icon: "success", timer: 1000 });
+                Swal.fire({ title: "Updated", icon: "success", timer: 1000, showConfirmButton: false });
                 fetchAdminData();
             }
         } catch (err) { Swal.fire("Error", "Action failed", "error"); }
@@ -154,7 +152,7 @@ const AdminDashboard = ({ activeTab }) => {
 };
 
 // ==============================
-// 2. STAFF DASHBOARD (Fully Synced)
+// 2. STAFF DASHBOARD
 // ==============================
 const StaffDashboard = ({ activeTab, user }) => {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -163,39 +161,35 @@ const StaffDashboard = ({ activeTab, user }) => {
     const [leaveReason, setLeaveReason] = useState("");
     const [myLeaveHistory, setMyLeaveHistory] = useState([]);
 
-    // ✅ PERSISTENCE SYNC: Runs on load to fetch Attendance AND Leave History
-    useEffect(() => {
-        const syncStaffData = async () => {
-            const token = localStorage.getItem("token");
-            try {
-                // 1. Fetch Attendance History
-                const attRes = await fetch(`${API_URL}/attendance/${user.email}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (attRes.ok) {
-                    const history = await attRes.json();
-                    const today = new Date().toISOString().split('T')[0];
-                    const todayRecord = history.find(r => r.date === today);
-                    if (todayRecord) {
-                        setIsCheckedIn(true);
-                        setCheckInTime(todayRecord.checkInTime);
-                    }
+    const syncStaffData = async () => {
+        const token = localStorage.getItem("token");
+        try {
+            // 1. Sync Attendance
+            const attRes = await fetch(`${API_URL}/attendance/${user.email}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (attRes.ok) {
+                const history = await attRes.json();
+                const today = new Date().toISOString().split('T')[0];
+                const todayRecord = history.find(r => r.date === today);
+                if (todayRecord) {
+                    setIsCheckedIn(true);
+                    setCheckInTime(todayRecord.checkInTime);
                 }
+            }
 
-                // 2. Fetch User's Personal Leave History
-                // Note: Ensure your backend has an endpoint like /api/leaves/user/{email}
-                const leaveRes = await fetch(`${API_URL}/leaves/pending`, { // Temporarily using pending, ideally user-specific
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (leaveRes.ok) {
-                    const allLeaves = await leaveRes.json();
-                    // Filter leaves belonging to this user
-                    setMyLeaveHistory(allLeaves.filter(l => l.email === user.email));
-                }
-            } catch (e) { console.error("Staff Sync Error"); }
-        };
+            // 2. Sync Leave History
+            // We fetch from a new endpoint that returns ALL leaves for the user
+            const leaveRes = await fetch(`${API_URL}/leaves/user/${user.email}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (leaveRes.ok) setMyLeaveHistory(await leaveRes.json());
+        } catch (e) { console.error("Staff Sync Error"); }
+    };
+
+    useEffect(() => {
         syncStaffData();
-    }, [user.email, activeTab]); // Sync when tab changes too
+        const interval = setInterval(syncStaffData, 10000);
+        return () => clearInterval(interval);
+    }, [user.email]);
 
     const handleAttendance = async () => {
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -209,15 +203,9 @@ const StaffDashboard = ({ activeTab, user }) => {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ email: user.email })
             });
-
             if (res.ok) {
-                if (!isCheckedIn) {
-                    setIsCheckedIn(true); setCheckInTime(nowTime);
-                    Swal.fire("Check-In", `Success at ${nowTime}`, "success");
-                } else {
-                    setIsCheckedIn(false); setCheckInTime(null);
-                    Swal.fire("Check-Out", "Work ended", "success");
-                }
+                syncStaffData();
+                Swal.fire({ title: "Success", icon: "success", timer: 1000, showConfirmButton: false });
             }
         } catch (e) { Swal.fire("Error", "Server error", "error"); }
     };
@@ -232,12 +220,25 @@ const StaffDashboard = ({ activeTab, user }) => {
                 body: JSON.stringify({ email: user.email, reason: leaveReason, startDate: leaveDate, endDate: leaveDate })
             });
             if (res.ok) {
-                const newLeave = await res.json();
-                setMyLeaveHistory([newLeave, ...myLeaveHistory]);
-                Swal.fire("Leave Sent", "Submitted for review", "success");
+                syncStaffData();
+                Swal.fire("Sent", "Request submitted", "success");
                 setLeaveDate(""); setLeaveReason("");
             }
         } catch (err) { Swal.fire("Error", "Submission failed", "error"); }
+    };
+
+    const deleteLeaveRecord = async (id) => {
+        const token = localStorage.getItem("token");
+        try {
+            const res = await fetch(`${API_URL}/leaves/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                syncStaffData();
+                Swal.fire("Deleted", "Record removed from history", "success");
+            }
+        } catch (err) { Swal.fire("Error", "Could not delete", "error"); }
     };
 
     return (
@@ -268,7 +269,7 @@ const StaffDashboard = ({ activeTab, user }) => {
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                    <ModernCard title="Apply for Leave" icon="event" color="dark">
+                    <ModernCard title="Apply for Absence" icon="event" color="dark">
                         <MDBox component="form" onSubmit={handleApplyLeave}>
                             <MDInput type="date" fullWidth value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} sx={{mb: 2}} />
                             <MDInput label="Reason" multiline rows={4} fullWidth value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} sx={{mb: 3}} />
@@ -277,16 +278,29 @@ const StaffDashboard = ({ activeTab, user }) => {
                     </ModernCard>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                    <ModernCard title="Your Leave Log" icon="history" color="info">
+                    <ModernCard title="Leave Status Log" icon="history" color="info">
                         {myLeaveHistory.length === 0 ? <MDTypography variant="button" color="text">No history found.</MDTypography> : (
                           <List>
                               {myLeaveHistory.map((item, i) => (
-                                <ListItem key={i} sx={{ px: 0, py: 1.5, borderBottom: "1px solid #f8f9fa" }}>
+                                <ListItem
+                                  key={i}
+                                  sx={{ px: 0, py: 1.5, borderBottom: "1px solid #f8f9fa" }}
+                                  secondaryAction={
+                                      <IconButton edge="end" color="error" onClick={() => deleteLeaveRecord(item.id)}>
+                                          <Icon>delete</Icon>
+                                      </IconButton>
+                                  }
+                                >
                                     <ListItemText
                                       primary={<MDTypography variant="button" fontWeight="bold">{item.startDate}</MDTypography>}
                                       secondary={<MDTypography variant="caption">{item.reason}</MDTypography>}
                                     />
-                                    <Chip label={item.status} size="small" color={item.status === 'PENDING' ? 'warning' : item.status === 'APPROVED' ? 'success' : 'error'} sx={{ fontWeight: "bold", color: "white" }} />
+                                    <Chip
+                                      label={item.status}
+                                      size="small"
+                                      color={item.status === 'PENDING' ? 'warning' : item.status === 'APPROVED' ? 'success' : 'error'}
+                                      sx={{ fontWeight: "bold", color: "white", mr: 2 }}
+                                    />
                                 </ListItem>
                               ))}
                           </List>
