@@ -150,7 +150,6 @@ const AdminDashboard = ({ activeTab }) => {
 
 // ==============================
 // 2. STAFF DASHBOARD Redesign
-// ==============================
 const StaffDashboard = ({ activeTab, user }) => {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
     const [checkInTime, setCheckInTime] = useState(null);
@@ -162,6 +161,8 @@ const StaffDashboard = ({ activeTab, user }) => {
         const today = new Date().toLocaleDateString();
         const storedDate = localStorage.getItem("attendanceDate");
         const storedTime = localStorage.getItem("checkInTime");
+
+        // If data exists for today, set the state so the button knows we are active
         if (storedDate === today && storedTime) {
             setIsCheckedIn(true);
             setCheckInTime(storedTime);
@@ -171,28 +172,50 @@ const StaffDashboard = ({ activeTab, user }) => {
     const handleAttendance = async () => {
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const token = localStorage.getItem("token");
+
+        // Always determine the endpoint based on the current state
         const endpoint = isCheckedIn ? "check-out" : "check-in";
         const method = isCheckedIn ? "PUT" : "POST";
 
         try {
             const res = await fetch(`${API_URL}/attendance/${endpoint}`, {
                 method: method,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ email: user.email })
             });
+
             if (res.ok) {
                 if (!isCheckedIn) {
-                    setIsCheckedIn(true); setCheckInTime(nowTime);
+                    // Action: CHECK IN
+                    setIsCheckedIn(true);
+                    setCheckInTime(nowTime);
                     localStorage.setItem("checkInTime", nowTime);
                     localStorage.setItem("attendanceDate", new Date().toLocaleDateString());
-                    Swal.fire("Check-In Success", `Recorded at ${nowTime}`, "success");
+                    Swal.fire("Success", `Checked in at ${nowTime}`, "success");
                 } else {
-                    setIsCheckedIn(false); setCheckInTime(null);
+                    // Action: CHECK OUT
+                    setIsCheckedIn(false);
+                    setCheckInTime(null);
                     localStorage.removeItem("checkInTime");
-                    Swal.fire("Check-Out Success", "Work day completed!", "success");
+                    localStorage.removeItem("attendanceDate");
+                    Swal.fire("Success", "Checked out successfully!", "success");
+                }
+            } else {
+                // Handle the "Already Checked In" case from Backend
+                const errorMsg = await res.text();
+                if (errorMsg.includes("already checked in")) {
+                    setIsCheckedIn(true);
+                    Swal.fire("Info", "Check-in already recorded for today.", "info");
+                } else {
+                    Swal.fire("Error", "Action could not be completed.", "error");
                 }
             }
-        } catch (e) { Swal.fire("Server Error", "Could not reach database", "error"); }
+        } catch (e) {
+            Swal.fire("Server Error", "Could not connect to the attendance service.", "error");
+        }
     };
 
     const handleApplyLeave = async (e) => {
@@ -220,19 +243,33 @@ const StaffDashboard = ({ activeTab, user }) => {
                 <Grid item xs={12} md={6}>
                     <ModernCard title="Daily Presence" icon="schedule" color="info">
                         <MDBox textAlign="center" py={2}>
-                            <MDTypography variant="caption" color="text" mb={3} display="block">Press to record your today's attendance</MDTypography>
+                            <MDTypography variant="caption" color="text" mb={3} display="block">
+                                {isCheckedIn ? "You are currently on duty." : "Press to record your today's attendance"}
+                            </MDTypography>
                             <MDBox display="flex" justifyContent="center" mb={3}>
                                 <MDButton
                                   variant="gradient"
                                   color={isCheckedIn ? "warning" : "success"}
-                                  sx={{ width: 140, height: 140, borderRadius: "50%", fontSize: "1rem", fontWeight: "bold", border: "8px solid #f0f2f5" }}
+                                  sx={{
+                                      width: 140,
+                                      height: 140,
+                                      borderRadius: "50%",
+                                      fontSize: "1rem",
+                                      fontWeight: "bold",
+                                      border: "8px solid #f0f2f5"
+                                  }}
                                   onClick={handleAttendance}
                                 >
                                     {isCheckedIn ? "CHECK OUT" : "CHECK IN"}
                                 </MDButton>
                             </MDBox>
                             {isCheckedIn && (
-                              <Chip icon={<Icon>check_circle</Icon>} label={`Active Since ${checkInTime}`} color="success" sx={{ color: "white", fontWeight: "bold" }} />
+                              <Chip
+                                icon={<Icon>check_circle</Icon>}
+                                label={`Active Since ${checkInTime}`}
+                                color="success"
+                                sx={{ color: "white", fontWeight: "bold" }}
+                              />
                             )}
                         </MDBox>
                     </ModernCard>
@@ -278,7 +315,6 @@ const StaffDashboard = ({ activeTab, user }) => {
       </MDBox>
     );
 };
-
 // ==============================
 // 3. MAIN PROFILE CONTAINER
 // ==============================
