@@ -27,7 +27,6 @@ import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
 function ManageInvoices() {
-  // ✅ 1. ROLE CHECK
   const rawRole = localStorage.getItem("role");
   const role = (rawRole || "").toLowerCase().trim();
 
@@ -35,11 +34,9 @@ function ManageInvoices() {
   const [showBackups, setShowBackups] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Modal State
   const [openPaymentModal, setOpenPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
-  // Payment Form Data
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentMode, setPaymentMode] = useState("UPI");
@@ -57,38 +54,24 @@ function ManageInvoices() {
     }
   };
 
-  // --- MATH LOGIC ---
   const getVal = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
 
   const getFinancials = (inv) => {
     if (!inv) return { total: 0, paid: 0, balance: 0, status: "PENDING", color: "warning" };
-
     const total = getVal(inv.grandTotal || inv.total || inv.amount || inv.totalAmount || inv.amountPayable);
     let paid = getVal(inv.amountPaid || inv.received);
-
     let balance = total - paid;
     if (balance < 1) balance = 0;
-
     let status = "PENDING";
     let color = "warning";
-
-    if (balance === 0 && total > 0) {
-      status = "PAID";
-      color = "success";
-    } else if (paid > 0 && balance > 0) {
-      status = "PARTIAL";
-      color = "info";
-    } else {
-      status = "PENDING";
-      color = "warning";
-    }
-
+    if (balance === 0 && total > 0) { status = "PAID"; color = "success"; }
+    else if (paid > 0 && balance > 0) { status = "PARTIAL"; color = "info"; }
+    else { status = "PENDING"; color = "warning"; }
     return { total, paid, balance, status, color };
   };
 
   const formatMoney = (amount) => "Rs. " + Number(amount).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
-  // --- ACTIONS ---
   const handleOpenPayment = (inv) => {
     const { balance } = getFinancials(inv);
     setSelectedInvoice(inv);
@@ -110,25 +93,17 @@ function ManageInvoices() {
           amount: getVal(paymentAmount)
         })
       });
-
       setOpenPaymentModal(false);
       fetchInvoices();
-      alert("Payment Recorded Successfully!");
-
-    } catch (err) {
-      alert("Network Error: Could not save payment.");
-    }
+    } catch (err) { alert("Network Error"); }
   };
 
-  // PERMANENT DELETE FUNCTION (Only works in Backup Mode)
   const deletePermanently = async (id) => {
-    if(!window.confirm("⚠️ PERMANENT DELETE: This cannot be undone. Are you sure?")) return;
+    if(!window.confirm("⚠️ PERMANENT DELETE?")) return;
     try {
       await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}`, { method: 'DELETE' });
       fetchInvoices();
-    } catch (err) {
-      alert("Delete failed.");
-    }
+    } catch (err) { alert("Delete failed."); }
   };
 
   const downloadPdf = async (id) => {
@@ -142,19 +117,29 @@ function ManageInvoices() {
     } catch (err) { alert("PDF Failed"); }
   };
 
-  // --- FILTER ---
+  // ✅ FIXED SEARCH LOGIC: Prevents white screen and filters properly
   const processedInvoices = useMemo(() => {
+    if (!Array.isArray(invoices)) return [];
+
     return invoices.filter((inv) => {
+      // 1. Filter by Archive/Backup status
       const isArchived = !!inv.archived;
       if (showBackups && !isArchived) return false;
       if (!showBackups && isArchived) return false;
 
-      const term = search.toLowerCase();
-      return (inv.groupName || "").toLowerCase().includes(term) || (inv.invoiceNo || "").toLowerCase().includes(term);
+      // 2. Filter by Search term
+      const term = search.trim().toLowerCase();
+      if (!term) return true;
+
+      const groupMatch = (inv.groupName || "").toLowerCase().includes(term);
+      const noMatch = (inv.invoiceNo || "").toLowerCase().includes(term);
+      // Added Client Name check if available in your entity
+      const clientMatch = (inv.clientName || "").toLowerCase().includes(term);
+
+      return groupMatch || noMatch || clientMatch;
     });
   }, [invoices, search, showBackups]);
 
-  // CALC 1: Totals for the CURRENT list (Active OR Backup)
   const totals = useMemo(() => processedInvoices.reduce((acc, curr) => {
     const { total, paid, balance } = getFinancials(curr);
     acc.total += total;
@@ -163,8 +148,6 @@ function ManageInvoices() {
     return acc;
   }, { total: 0, paid: 0, pending: 0 }), [processedInvoices]);
 
-  // ✅ CALC 2: GRAND TOTAL of ARCHIVED (For the 4th Card)
-  // We calculate this from the full list, regardless of what we are viewing.
   const archivedGrandTotal = useMemo(() => invoices
       .filter(inv => inv.archived)
       .reduce((sum, inv) => sum + getFinancials(inv).total, 0),
@@ -172,151 +155,100 @@ function ManageInvoices() {
 
   const StatusLabel = ({ text, color }) => (
     <span style={{
-      padding: "5px 10px",
-      borderRadius: "6px",
-      fontSize: "11px",
-      fontWeight: "bold",
-      color: "white",
-      backgroundColor: color === "success" ? "#4CAF50" : color === "info" ? "#2196F3" : "#FF9800",
-    }}>
-          {text}
-      </span>
+      padding: "5px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: "bold",
+      color: "white", backgroundColor: color === "success" ? "#4CAF50" : color === "info" ? "#2196F3" : "#FF9800",
+    }}>{text}</span>
   );
 
-  // Dynamic Grid Width: 3 columns normally, 4 columns when showing the Backup Stats
   const cardGridSize = showBackups ? 3 : 4;
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
       <MDBox pt={6} pb={3}>
-
-        {/* HEADER */}
         <MDBox display="flex" justifyContent="space-between" mb={3} bgColor="white" p={2} borderRadius="lg" shadow="sm">
-
-          {/* TOGGLE: Hidden for standard users */}
           {role === "admin" ? (
             <MDBox display="flex" alignItems="center">
               <MDTypography variant="button" fontWeight="bold" mr={2}>Active</MDTypography>
               <Switch checked={showBackups} onChange={() => setShowBackups(!showBackups)} color="warning" />
               <MDTypography variant="button" fontWeight="bold" ml={2} color={showBackups ? "error" : "text"}>Backups</MDTypography>
             </MDBox>
-          ) : (
-            <MDTypography variant="h6" ml={2}>Active Invoices</MDTypography>
-          )}
+          ) : ( <MDTypography variant="h6" ml={2}>Active Invoices</MDTypography> )}
 
-          <MDBox width="200px">
-            <MDInput label="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          {/* ✅ UPDATED SEARCH INPUT: Now supports clear functionality and better UX */}
+          <MDBox width="250px">
+            <MDInput
+              placeholder="Search Invoice # or Group..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              fullWidth
+              InputProps={{
+                endAdornment: search && (
+                  <Icon sx={{ cursor: "pointer" }} onClick={() => setSearch("")}>close</Icon>
+                ),
+              }}
+            />
           </MDBox>
         </MDBox>
 
-        {/* STATS CARDS */}
         <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6">{formatMoney(totals.total)}</MDTypography><MDTypography variant="caption">{showBackups ? "Backup Revenue" : "Total Revenue"}</MDTypography></MDBox></Card></Grid>
-          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="success">{formatMoney(totals.paid)}</MDTypography><MDTypography variant="caption">Total Collected</MDTypography></MDBox></Card></Grid>
-          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(totals.pending)}</MDTypography><MDTypography variant="caption">Total Due</MDTypography></MDBox></Card></Grid>
-
-          {/* ✅ NEW 4TH CARD: Only visible in Backup Mode */}
+          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6">{formatMoney(totals.total)}</MDTypography><MDTypography variant="caption">Revenue</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="success">{formatMoney(totals.paid)}</MDTypography><MDTypography variant="caption">Collected</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(totals.pending)}</MDTypography><MDTypography variant="caption">Due</MDTypography></MDBox></Card></Grid>
           {showBackups && (
-            <Grid item xs={12} md={3}>
-              <Card sx={{ border: "1px solid #ffcdd2", backgroundColor: "#ffebee" }}>
-                <MDBox p={2} textAlign="center">
-                  <MDTypography variant="h6" color="error">
-                    {formatMoney(archivedGrandTotal)}
-                  </MDTypography>
-                  <MDTypography variant="caption" color="error" fontWeight="bold">
-                    Total Archived Value
-                  </MDTypography>
-                </MDBox>
-              </Card>
-            </Grid>
+            <Grid item xs={12} md={3}><Card sx={{ border: "1px solid #ffcdd2", backgroundColor: "#ffebee" }}><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(archivedGrandTotal)}</MDTypography><MDTypography variant="caption" color="error" fontWeight="bold">Archived Value</MDTypography></MDBox></Card></Grid>
           )}
         </Grid>
 
-        {/* LIST */}
         <Card>
           <MDBox p={3}>
-            {processedInvoices.length === 0 && <MDTypography textAlign="center">No invoices found.</MDTypography>}
-
-            {processedInvoices.map((inv) => {
-              const { total, paid, balance, status, color } = getFinancials(inv);
-
-              return (
-                <MDBox key={inv.id} mb={2} p={2} sx={{ border: "1px solid #eee", borderRadius: "8px", background: showBackups ? "#fff0f0" : "white" }}>
-                  <Grid container alignItems="center">
-                    <Grid item xs={12} md={4}>
-                      <MDTypography variant="button" fontWeight="bold" fontSize="1rem">#{inv.invoiceNo}</MDTypography>
-                      <MDTypography variant="caption" display="block" color="text" fontWeight="medium">{inv.groupName}</MDTypography>
+            {processedInvoices.length === 0 ? (
+              <MDTypography textAlign="center" py={3} color="text">No invoices found for "{search}"</MDTypography>
+            ) : (
+              processedInvoices.map((inv) => {
+                const { total, paid, balance, status, color } = getFinancials(inv);
+                return (
+                  <MDBox key={inv.id} mb={2} p={2} sx={{ border: "1px solid #eee", borderRadius: "8px", background: showBackups ? "#fff0f0" : "white" }}>
+                    <Grid container alignItems="center">
+                      <Grid item xs={12} md={4}>
+                        <MDTypography variant="button" fontWeight="bold" fontSize="1rem">#{inv.invoiceNo}</MDTypography>
+                        <MDTypography variant="caption" display="block" color="text">{inv.groupName}</MDTypography>
+                      </Grid>
+                      <Grid item xs={6} md={2} textAlign="center"><StatusLabel text={status} color={color} /></Grid>
+                      <Grid item xs={6} md={3} textAlign="right" pr={2}>
+                        <MDTypography variant="caption" display="block">Total: {formatMoney(total)}</MDTypography>
+                        <MDTypography variant="button" color={balance > 0 ? "error" : "success"} fontWeight="bold">{balance > 0 ? `Due: ${formatMoney(balance)}` : "Fully Paid"}</MDTypography>
+                      </Grid>
+                      <Grid item xs={12} md={3} textAlign="right">
+                        {!showBackups && balance > 0 && (
+                          <MDButton variant="text" color="success" onClick={() => handleOpenPayment(inv)}><Icon>payment</Icon></MDButton>
+                        )}
+                        <MDButton variant="text" color="info" onClick={() => downloadPdf(inv.id)}><Icon>download</Icon></MDButton>
+                        <MDButton variant="text" color="warning" onClick={() => {
+                          if(window.confirm(showBackups ? "Restore?" : "Archive?")) {
+                            const end = showBackups ? "restore" : "archive";
+                            fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${end}`, { method: 'PUT' }).then(fetchInvoices);
+                          }
+                        }}><Icon>{showBackups ? "restore" : "archive"}</Icon></MDButton>
+                        {showBackups && role === "admin" && (
+                          <MDButton variant="text" color="error" onClick={() => deletePermanently(inv.id)}><Icon>delete_forever</Icon></MDButton>
+                        )}
+                      </Grid>
                     </Grid>
-
-                    <Grid item xs={6} md={2} textAlign="center">
-                      <StatusLabel text={status} color={color} />
-                    </Grid>
-
-                    <Grid item xs={6} md={3} textAlign="right" pr={2}>
-                      <MDTypography variant="caption" display="block" color="text">Total: {formatMoney(total)}</MDTypography>
-                      {balance > 0 ? (
-                        <MDTypography variant="button" color="error" fontWeight="bold">Due: {formatMoney(balance)}</MDTypography>
-                      ) : (
-                        <MDTypography variant="caption" color="success" fontWeight="bold">Fully Paid</MDTypography>
-                      )}
-                    </Grid>
-
-                    <Grid item xs={12} md={3} textAlign="right">
-                      {/* 1. Payment (Active only) */}
-                      {!showBackups && balance > 0 && (
-                        <MDButton variant="text" color="success" onClick={() => handleOpenPayment(inv)} title="Record Payment">
-                          <Icon>payment</Icon>
-                        </MDButton>
-                      )}
-
-                      {/* 2. Download PDF */}
-                      <MDButton variant="text" color="info" onClick={() => downloadPdf(inv.id)} title="Download PDF">
-                        <Icon>download</Icon>
-                      </MDButton>
-
-                      {/* 3. ✅ ARCHIVE / RESTORE (Available to ALL) */}
-                      {/* User sees "Archive" -> Clicks -> It vanishes (to them). */}
-                      {/* Admin sees "Restore" (if in backup mode) -> Clicks -> It returns. */}
-                      <MDButton variant="text" color="warning" onClick={() => {
-                        if(window.confirm(showBackups ? "Restore this invoice?" : "Archive this invoice?")) {
-                          const endpoint = showBackups ? "restore" : "archive";
-                          fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
-                        }
-                      }} title={showBackups ? "Restore" : "Archive"}>
-                        <Icon>{showBackups ? "restore" : "archive"}</Icon>
-                      </MDButton>
-
-                      {/* 4. ✅ DELETE BUTTON (Only in Backup Mode & Admin Only) */}
-                      {showBackups && role === "admin" && (
-                        <MDButton
-                          variant="text"
-                          color="error"
-                          onClick={() => deletePermanently(inv.id)}
-                          title="Delete Forever"
-                          sx={{ marginLeft: '8px' }}
-                        >
-                          <Icon>delete_forever</Icon>
-                        </MDButton>
-                      )}
-
-                    </Grid>
-                  </Grid>
-                </MDBox>
-              );
-            })}
+                  </MDBox>
+                );
+              })
+            )}
           </MDBox>
         </Card>
 
-        {/* PAYMENT MODAL */}
         <Dialog open={openPaymentModal} onClose={() => setOpenPaymentModal(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Record Payment</DialogTitle>
           <DialogContent>
             <MDBox pt={2}>
               <MDInput label="Amount" type="number" fullWidth value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
               <br /><br />
-              <FormControl fullWidth>
-                <InputLabel>Mode</InputLabel>
+              <FormControl fullWidth><InputLabel>Mode</InputLabel>
                 <Select value={paymentMode} label="Mode" onChange={(e) => setPaymentMode(e.target.value)} sx={{ height: 45 }}>
                   <MenuItem value="UPI">UPI</MenuItem><MenuItem value="Cash">Cash</MenuItem><MenuItem value="Bank">Bank Transfer</MenuItem>
                 </Select>
@@ -330,7 +262,6 @@ function ManageInvoices() {
             <MDButton onClick={submitPayment} color="success">Confirm</MDButton>
           </DialogActions>
         </Dialog>
-
       </MDBox>
       <Footer />
     </DashboardLayout>
