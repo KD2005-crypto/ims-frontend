@@ -13,7 +13,7 @@
  * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 // react-router-dom components
 import { useLocation, NavLink } from "react-router-dom";
@@ -52,6 +52,22 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
   const location = useLocation();
   const collapseName = location.pathname.replace("/", "");
 
+  // --- SECURITY: GET USER ROLE ---
+  const [userRole, setUserRole] = useState("STAFF"); // Default to strict mode
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        // If role is missing, default to STAFF (Safety First)
+        setUserRole(parsedUser.role || "STAFF");
+      } catch (e) {
+        setUserRole("STAFF");
+      }
+    }
+  }, []);
+
   let textColor = "white";
 
   if (transparentSidenav || (whiteSidenav && !darkMode)) {
@@ -73,56 +89,64 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
     return () => window.removeEventListener("resize", handleMiniSidenav);
   }, [dispatch, location]);
 
-  const renderRoutes = routes.map(({ type, name, icon, title, noCollapse, key, href, route }) => {
+  // --- THE FILTER LOGIC ---
+  const renderRoutes = routes.map(({ type, name, icon, title, noCollapse, key, href, route, role }) => {
+
+    // 🔒 SECURITY CHECK:
+    // If the route requires 'admin' role, but the user is NOT 'ADMIN', skip it.
+    if (role === "admin" && userRole !== "ADMIN") {
+      return null;
+    }
+
     let returnValue;
 
     if (type === "collapse") {
       returnValue = href ? (
-        <Link
-          href={href}
-          key={key}
-          target="_blank"
-          rel="noreferrer"
-          sx={{ textDecoration: "none" }}
-        >
-          <SidenavCollapse
-            name={name}
-            icon={icon}
-            active={key === collapseName}
-            noCollapse={noCollapse}
-          />
-        </Link>
+          <Link
+              href={href}
+              key={key}
+              target="_blank"
+              rel="noreferrer"
+              sx={{ textDecoration: "none" }}
+          >
+            <SidenavCollapse
+                name={name}
+                icon={icon}
+                active={key === collapseName}
+                noCollapse={noCollapse}
+            />
+          </Link>
       ) : (
-        <NavLink key={key} to={route}>
-          <SidenavCollapse name={name} icon={icon} active={key === collapseName} />
-        </NavLink>
+          <NavLink key={key} to={route}>
+            <SidenavCollapse name={name} icon={icon} active={key === collapseName} />
+          </NavLink>
       );
     } else if (type === "title") {
       returnValue = (
-        <MDTypography
-          key={key}
-          display="block"
-          variant="caption"
-          fontWeight="bold"
-          textTransform="uppercase"
-          pl={3}
-          mt={2}
-          mb={1}
-          ml={1}
-          color={textColor}
-        >
-          {title}
-        </MDTypography>
+          <MDTypography
+              key={key}
+              display="block"
+              variant="caption"
+              fontWeight="bold"
+              textTransform="uppercase"
+              pl={3}
+              mt={2}
+              mb={1}
+              ml={1}
+              color={textColor}
+          >
+            {title}
+          </MDTypography>
       );
     } else if (type === "divider") {
       returnValue = (
-        <Divider
-          key={key}
-          light={
-            (!darkMode && !whiteSidenav && !transparentSidenav) ||
-            (darkMode && !transparentSidenav && whiteSidenav)
-          }
-        />
+          <Divider
+              key={key}
+              light={
+                  (!darkMode && !whiteSidenav && !transparentSidenav) ||
+                  (darkMode && !transparentSidenav && whiteSidenav)
+              }
+          />
       );
     }
 
@@ -130,57 +154,57 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
   });
 
   return (
-    <SidenavRoot
-      {...rest}
-      variant="permanent"
-      ownerState={{ transparentSidenav, whiteSidenav, miniSidenav, darkMode }}
-    >
-      <MDBox pt={3} pb={1} px={4} textAlign="center">
-        <MDBox
-          display={{ xs: "block", xl: "none" }}
-          position="absolute"
-          top={0}
-          right={0}
-          p={1.625}
-          onClick={closeSidenav}
-          sx={{ cursor: "pointer" }}
-        >
-          <MDTypography variant="h6" color="secondary">
-            <Icon sx={{ fontWeight: "bold" }}>close</Icon>
-          </MDTypography>
-        </MDBox>
-        <MDBox component={NavLink} to="/" display="flex" alignItems="center">
-          {/* --- SMART ICON (FIXED COLOR) --- */}
-          <MDBox mr={1} display="flex" alignItems="center">
-            <Icon
-              fontSize="medium"
-              sx={{
-                color: textColor === "white" ? "#FFFFFF" : "#344767",
-                marginTop: "-2px", // Slight alignment tweak
-              }}
-            >
-              inventory_2
-            </Icon>
-          </MDBox>
-
+      <SidenavRoot
+          {...rest}
+          variant="permanent"
+          ownerState={{ transparentSidenav, whiteSidenav, miniSidenav, darkMode }}
+      >
+        <MDBox pt={3} pb={1} px={4} textAlign="center">
           <MDBox
-            width={!brandName && "100%"}
-            sx={(theme) => sidenavLogoLabel(theme, { miniSidenav })}
+              display={{ xs: "block", xl: "none" }}
+              position="absolute"
+              top={0}
+              right={0}
+              p={1.625}
+              onClick={closeSidenav}
+              sx={{ cursor: "pointer" }}
           >
-            <MDTypography component="h6" variant="button" fontWeight="medium" color={textColor}>
-              {brandName}
+            <MDTypography variant="h6" color="secondary">
+              <Icon sx={{ fontWeight: "bold" }}>close</Icon>
             </MDTypography>
           </MDBox>
+          <MDBox component={NavLink} to="/" display="flex" alignItems="center">
+            {/* --- SMART ICON --- */}
+            <MDBox mr={1} display="flex" alignItems="center">
+              <Icon
+                  fontSize="medium"
+                  sx={{
+                    color: textColor === "white" ? "#FFFFFF" : "#344767",
+                    marginTop: "-2px",
+                  }}
+              >
+                inventory_2
+              </Icon>
+            </MDBox>
+
+            <MDBox
+                width={!brandName && "100%"}
+                sx={(theme) => sidenavLogoLabel(theme, { miniSidenav })}
+            >
+              <MDTypography component="h6" variant="button" fontWeight="medium" color={textColor}>
+                {brandName}
+              </MDTypography>
+            </MDBox>
+          </MDBox>
         </MDBox>
-      </MDBox>
-      <Divider
-        light={
-          (!darkMode && !whiteSidenav && !transparentSidenav) ||
-          (darkMode && !transparentSidenav && whiteSidenav)
-        }
-      />
-      <List>{renderRoutes}</List>
-    </SidenavRoot>
+        <Divider
+            light={
+                (!darkMode && !whiteSidenav && !transparentSidenav) ||
+                (darkMode && !transparentSidenav && whiteSidenav)
+            }
+        />
+        <List>{renderRoutes}</List>
+      </SidenavRoot>
   );
 }
 

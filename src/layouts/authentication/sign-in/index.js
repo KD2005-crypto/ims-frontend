@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 // react-router-dom components
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 // @mui material components
 import Card from "@mui/material/Card";
@@ -14,123 +14,194 @@ import MDTypography from "components/MDTypography";
 import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
 
-// --- THE FIX: Import Context to control the Sidebar ---
+// Context
 import { useMaterialUIController, setLayout } from "context";
 
 function Basic() {
   const [rememberMe, setRememberMe] = useState(false);
-
-  // --- THE FIX: Get the Controller ---
   const [controller, dispatch] = useMaterialUIController();
+  const navigate = useNavigate();
 
-  // --- THE FIX: Hide Sidebar on Load ---
+  // State for Inputs
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
   useEffect(() => {
-    setLayout(dispatch, "page"); // "page" mode hides the Sidenav & Navbar
+    setLayout(dispatch, "page");
   }, [dispatch]);
 
   const handleSetRememberMe = () => setRememberMe(!rememberMe);
 
-  // Professional Abstract Tech Background
+  // --- THE REAL LOGIN FUNCTION ---
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const response = await fetch("https://ims-backend-production-e15c.up.railway.app/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // SUCCESS: Save Token & User
+        localStorage.setItem("token", data.token);
+        // We save the whole user object so the Sidebar can check "role" later
+        if (data) {
+          localStorage.setItem("user", JSON.stringify(data));
+        }
+
+        // Move to Dashboard
+        navigate("/dashboard");
+      } else {
+        setError(data.message || "Login failed");
+        alert("Login Failed: " + (data.message || "Check credentials"));
+      }
+    } catch (err) {
+      console.error("Login Error:", err);
+      setError("Server error. Please try again.");
+    }
+  };
+
   const bgImage = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80";
 
   return (
-    <MDBox
-      width="100vw"
-      height="100vh"
-      sx={{
-        backgroundImage: `linear-gradient(195deg, rgba(66, 66, 74, 0.6), rgba(25, 25, 35, 0.8)), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Grid container spacing={1} justifyContent="center" alignItems="center" height="100%">
-        <Grid item xs={11} sm={9} md={5} lg={4} xl={3}>
-          <Card>
-            {/* --- 1. HEADER SECTION --- */}
-            <MDBox
-              variant="gradient"
-              bgColor="info"
-              borderRadius="lg"
-              coloredShadow="info"
-              mx={2}
-              mt={-3}
-              p={3}
-              mb={1}
-              textAlign="center"
-            >
-              <MDTypography variant="h4" fontWeight="medium" color="white" mt={1}>
-                Code-B IMS
-              </MDTypography>
-              <MDTypography variant="caption" color="white" opacity={0.8} display="block" mb={1}>
-                Authorized Personnel Only
-              </MDTypography>
-            </MDBox>
+      <MDBox
+          width="100vw"
+          height="100vh"
+          sx={{
+            backgroundImage: `linear-gradient(195deg, rgba(66, 66, 74, 0.6), rgba(25, 25, 35, 0.8)), url(${bgImage})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+      >
+        <Grid container spacing={1} justifyContent="center" alignItems="center" height="100%">
+          <Grid item xs={11} sm={9} md={5} lg={4} xl={3}>
+            <Card>
+              <MDBox
+                  variant="gradient"
+                  bgColor="info"
+                  borderRadius="lg"
+                  coloredShadow="info"
+                  mx={2}
+                  mt={-3}
+                  p={3}
+                  mb={1}
+                  textAlign="center"
+              >
+                <MDTypography variant="h4" fontWeight="medium" color="white" mt={1}>
+                  Code-B IMS
+                </MDTypography>
+                <MDTypography variant="caption" color="white" opacity={0.8} display="block" mb={1}>
+                  Authorized Personnel Only
+                </MDTypography>
+              </MDBox>
 
-            {/* --- 2. FORM SECTION --- */}
-            <MDBox pt={4} pb={3} px={3}>
-              <MDBox component="form" role="form">
-                <MDBox mb={2}>
-                  <MDInput type="email" label="Corporate ID / Email" fullWidth />
-                </MDBox>
-                <MDBox mb={2}>
-                  <MDInput type="password" label="Password" fullWidth />
-                </MDBox>
+              <MDBox pt={4} pb={3} px={3}>
+                <MDBox component="form" role="form">
+                  <MDBox mb={2}>
+                    <MDInput
+                        type="email"
+                        label="Corporate ID / Email"
+                        fullWidth
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </MDBox>
+                  <MDBox mb={2}>
+                    <MDInput
+                        type="password"
+                        label="Password"
+                        fullWidth
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </MDBox>
 
-                <MDBox display="flex" alignItems="center" ml={-1}>
-                  <Switch checked={rememberMe} onChange={handleSetRememberMe} />
-                  <MDTypography
-                    variant="button"
-                    fontWeight="regular"
-                    color="text"
-                    onClick={handleSetRememberMe}
-                    sx={{ cursor: "pointer", userSelect: "none", ml: -1 }}
-                  >
-                    &nbsp;&nbsp;Keep me logged in
-                  </MDTypography>
-                </MDBox>
-
-                <MDBox mt={4} mb={1}>
-                  <MDButton
-                    variant="gradient"
-                    color="info"
-                    fullWidth
-                    component={Link}
-                    to="/dashboard"
-                  >
-                    Secure Login
-                  </MDButton>
-                </MDBox>
-
-                <MDBox mt={3} mb={1} textAlign="center">
-                  <MDTypography variant="caption" color="text">
-                    Forgot your credentials?{" "}
+                  <MDBox display="flex" alignItems="center" ml={-1}>
+                    <Switch checked={rememberMe} onChange={handleSetRememberMe} />
                     <MDTypography
-                      component={Link}
-                      to="#"
-                      variant="caption"
-                      color="info"
-                      fontWeight="medium"
-                      textGradient
+                        variant="button"
+                        fontWeight="regular"
+                        color="text"
+                        onClick={handleSetRememberMe}
+                        sx={{ cursor: "pointer", userSelect: "none", ml: -1 }}
                     >
-                      Contact IT Support
+                      &nbsp;&nbsp;Keep me logged in
                     </MDTypography>
-                  </MDTypography>
+                  </MDBox>
+
+                  <MDBox mt={4} mb={1}>
+                    <MDButton
+                        variant="gradient"
+                        color="info"
+                        fullWidth
+                        onClick={handleLogin}
+                    >
+                      Secure Login
+                    </MDButton>
+                  </MDBox>
+
+                  {error && (
+                      <MDBox mt={1} textAlign="center">
+                        <MDTypography variant="caption" color="error">
+                          {error}
+                        </MDTypography>
+                      </MDBox>
+                  )}
+
+                  {/* ✅ UPDATED FORGOT PASSWORD LINK */}
+                  <MDBox mt={3} mb={1} textAlign="center">
+                    <MDTypography variant="caption" color="text">
+                      Forgot your credentials?{" "}
+                      <MDTypography
+                          component={Link}
+                          to="/authentication/reset-password" // Points to your new page
+                          variant="caption"
+                          color="info"
+                          fontWeight="medium"
+                          textGradient
+                      >
+                        Reset Password
+                      </MDTypography>
+                    </MDTypography>
+                  </MDBox>
+
+                  <MDBox mt={1} mb={1} textAlign="center">
+                    <MDTypography variant="button" color="text">
+                      Don&apos;t have an account?{" "}
+                      <MDTypography
+                          component={Link}
+                          to="/authentication/sign-up"
+                          variant="button"
+                          color="info"
+                          fontWeight="medium"
+                          textGradient
+                      >
+                        Sign Up
+                      </MDTypography>
+                    </MDTypography>
+                  </MDBox>
+
                 </MDBox>
               </MDBox>
-            </MDBox>
-          </Card>
+            </Card>
 
-          <MDBox mt={2} textAlign="center">
-            <MDTypography variant="caption" color="white" opacity={0.8}>
-              © 2026 Code-B Enterprise System. Dhanshri K.
-            </MDTypography>
-          </MDBox>
+            <MDBox mt={2} textAlign="center">
+              <MDTypography variant="caption" color="white" opacity={0.8}>
+                © 2026 Code-B Enterprise System. Dhanshri K.
+              </MDTypography>
+            </MDBox>
+          </Grid>
         </Grid>
-      </Grid>
-    </MDBox>
+      </MDBox>
   );
 }
 
