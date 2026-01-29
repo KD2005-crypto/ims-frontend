@@ -54,23 +54,31 @@ const ModernCard = ({ children, title, icon, color = "info" }) => (
 );
 
 // ==============================
-// 1. ADMIN DASHBOARD Redesign
+// 1. ADMIN DASHBOARD (Fully Synced)
 // ==============================
 const AdminDashboard = ({ activeTab }) => {
     const [employeeAttendance, setEmployeeAttendance] = useState([]);
     const [leaveRequests, setLeaveRequests] = useState([]);
 
-    useEffect(() => { fetchAdminData(); }, []);
-
     const fetchAdminData = async () => {
         const token = localStorage.getItem("token");
         try {
+            // Sync Attendance
             const attRes = await fetch(`${API_URL}/attendance/today`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (attRes.ok) setEmployeeAttendance(await attRes.json());
+
+            // Sync Pending Leaves
             const leaveRes = await fetch(`${API_URL}/leaves/pending`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
-        } catch (error) { console.error("Error:", error); }
+        } catch (error) { console.error("Admin Sync Error"); }
     };
+
+    // ✅ HEARTBEAT: Auto-refresh every 10 seconds for Admin
+    useEffect(() => {
+        fetchAdminData();
+        const interval = setInterval(fetchAdminData, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     const handleLeaveAction = async (id, status) => {
         const token = localStorage.getItem("token");
@@ -80,7 +88,7 @@ const AdminDashboard = ({ activeTab }) => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                Swal.fire({ title: "Success", text: `Leave ${status}ed successfully`, icon: "success", timer: 1500 });
+                Swal.fire({ title: "Success", text: `Leave ${status}ed`, icon: "success", timer: 1000 });
                 fetchAdminData();
             }
         } catch (err) { Swal.fire("Error", "Action failed", "error"); }
@@ -102,9 +110,6 @@ const AdminDashboard = ({ activeTab }) => {
                               </ListItem>
                             ))}
                         </List>
-                        <MDBox mt={2} textAlign="right">
-                            <MDButton variant="text" color="info" size="small" onClick={fetchAdminData}>Refresh Data</MDButton>
-                        </MDBox>
                     </ModernCard>
                 </Grid>
                 <Grid item xs={12} md={4}>
@@ -121,7 +126,7 @@ const AdminDashboard = ({ activeTab }) => {
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12}>
-                    <ModernCard title="Pending Leave Approvals" icon="fact_check" color="warning">
+                    <ModernCard title="Pending Approvals" icon="fact_check" color="warning">
                         {leaveRequests.length === 0 ? <MDTypography variant="button" color="text">All requests processed!</MDTypography> : (
                           <Grid container spacing={2}>
                               {leaveRequests.map((req) => (
@@ -149,7 +154,8 @@ const AdminDashboard = ({ activeTab }) => {
 };
 
 // ==============================
-// 2. STAFF DASHBOARD Redesign
+// 2. STAFF DASHBOARD (Fully Synced)
+// ==============================
 const StaffDashboard = ({ activeTab, user }) => {
     const [isCheckedIn, setIsCheckedIn] = useState(false);
     const [checkInTime, setCheckInTime] = useState(null);
@@ -157,65 +163,63 @@ const StaffDashboard = ({ activeTab, user }) => {
     const [leaveReason, setLeaveReason] = useState("");
     const [myLeaveHistory, setMyLeaveHistory] = useState([]);
 
+    // ✅ PERSISTENCE SYNC: Runs on load to fetch Attendance AND Leave History
     useEffect(() => {
-        const today = new Date().toLocaleDateString();
-        const storedDate = localStorage.getItem("attendanceDate");
-        const storedTime = localStorage.getItem("checkInTime");
+        const syncStaffData = async () => {
+            const token = localStorage.getItem("token");
+            try {
+                // 1. Fetch Attendance History
+                const attRes = await fetch(`${API_URL}/attendance/${user.email}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (attRes.ok) {
+                    const history = await attRes.json();
+                    const today = new Date().toISOString().split('T')[0];
+                    const todayRecord = history.find(r => r.date === today);
+                    if (todayRecord) {
+                        setIsCheckedIn(true);
+                        setCheckInTime(todayRecord.checkInTime);
+                    }
+                }
 
-        // If data exists for today, set the state so the button knows we are active
-        if (storedDate === today && storedTime) {
-            setIsCheckedIn(true);
-            setCheckInTime(storedTime);
-        }
-    }, []);
+                // 2. Fetch User's Personal Leave History
+                // Note: Ensure your backend has an endpoint like /api/leaves/user/{email}
+                const leaveRes = await fetch(`${API_URL}/leaves/pending`, { // Temporarily using pending, ideally user-specific
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (leaveRes.ok) {
+                    const allLeaves = await leaveRes.json();
+                    // Filter leaves belonging to this user
+                    setMyLeaveHistory(allLeaves.filter(l => l.email === user.email));
+                }
+            } catch (e) { console.error("Staff Sync Error"); }
+        };
+        syncStaffData();
+    }, [user.email, activeTab]); // Sync when tab changes too
 
     const handleAttendance = async () => {
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const token = localStorage.getItem("token");
-
-        // Always determine the endpoint based on the current state
         const endpoint = isCheckedIn ? "check-out" : "check-in";
         const method = isCheckedIn ? "PUT" : "POST";
 
         try {
             const res = await fetch(`${API_URL}/attendance/${endpoint}`, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ email: user.email })
             });
 
             if (res.ok) {
                 if (!isCheckedIn) {
-                    // Action: CHECK IN
-                    setIsCheckedIn(true);
-                    setCheckInTime(nowTime);
-                    localStorage.setItem("checkInTime", nowTime);
-                    localStorage.setItem("attendanceDate", new Date().toLocaleDateString());
-                    Swal.fire("Success", `Checked in at ${nowTime}`, "success");
+                    setIsCheckedIn(true); setCheckInTime(nowTime);
+                    Swal.fire("Check-In", `Success at ${nowTime}`, "success");
                 } else {
-                    // Action: CHECK OUT
-                    setIsCheckedIn(false);
-                    setCheckInTime(null);
-                    localStorage.removeItem("checkInTime");
-                    localStorage.removeItem("attendanceDate");
-                    Swal.fire("Success", "Checked out successfully!", "success");
-                }
-            } else {
-                // Handle the "Already Checked In" case from Backend
-                const errorMsg = await res.text();
-                if (errorMsg.includes("already checked in")) {
-                    setIsCheckedIn(true);
-                    Swal.fire("Info", "Check-in already recorded for today.", "info");
-                } else {
-                    Swal.fire("Error", "Action could not be completed.", "error");
+                    setIsCheckedIn(false); setCheckInTime(null);
+                    Swal.fire("Check-Out", "Work ended", "success");
                 }
             }
-        } catch (e) {
-            Swal.fire("Server Error", "Could not connect to the attendance service.", "error");
-        }
+        } catch (e) { Swal.fire("Error", "Server error", "error"); }
     };
 
     const handleApplyLeave = async (e) => {
@@ -230,7 +234,7 @@ const StaffDashboard = ({ activeTab, user }) => {
             if (res.ok) {
                 const newLeave = await res.json();
                 setMyLeaveHistory([newLeave, ...myLeaveHistory]);
-                Swal.fire("Request Sent", "Admin will review your request", "success");
+                Swal.fire("Leave Sent", "Submitted for review", "success");
                 setLeaveDate(""); setLeaveReason("");
             }
         } catch (err) { Swal.fire("Error", "Submission failed", "error"); }
@@ -243,33 +247,17 @@ const StaffDashboard = ({ activeTab, user }) => {
                 <Grid item xs={12} md={6}>
                     <ModernCard title="Daily Presence" icon="schedule" color="info">
                         <MDBox textAlign="center" py={2}>
-                            <MDTypography variant="caption" color="text" mb={3} display="block">
-                                {isCheckedIn ? "You are currently on duty." : "Press to record your today's attendance"}
-                            </MDTypography>
                             <MDBox display="flex" justifyContent="center" mb={3}>
                                 <MDButton
-                                  variant="gradient"
-                                  color={isCheckedIn ? "warning" : "success"}
-                                  sx={{
-                                      width: 140,
-                                      height: 140,
-                                      borderRadius: "50%",
-                                      fontSize: "1rem",
-                                      fontWeight: "bold",
-                                      border: "8px solid #f0f2f5"
-                                  }}
+                                  variant="gradient" color={isCheckedIn ? "warning" : "success"}
+                                  sx={{ width: 140, height: 140, borderRadius: "50%", fontSize: "1rem", fontWeight: "bold", border: "8px solid #f0f2f5" }}
                                   onClick={handleAttendance}
                                 >
                                     {isCheckedIn ? "CHECK OUT" : "CHECK IN"}
                                 </MDButton>
                             </MDBox>
                             {isCheckedIn && (
-                              <Chip
-                                icon={<Icon>check_circle</Icon>}
-                                label={`Active Since ${checkInTime}`}
-                                color="success"
-                                sx={{ color: "white", fontWeight: "bold" }}
-                              />
+                              <Chip icon={<Icon>check_circle</Icon>} label={`Active Since ${checkInTime}`} color="success" sx={{ color: "white", fontWeight: "bold" }} />
                             )}
                         </MDBox>
                     </ModernCard>
@@ -280,30 +268,25 @@ const StaffDashboard = ({ activeTab, user }) => {
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                    <ModernCard title="Apply for Absence" icon="event" color="dark">
+                    <ModernCard title="Apply for Leave" icon="event" color="dark">
                         <MDBox component="form" onSubmit={handleApplyLeave}>
                             <MDInput type="date" fullWidth value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} sx={{mb: 2}} />
-                            <MDInput label="Reason for Leave" multiline rows={4} fullWidth value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} sx={{mb: 3}} />
-                            <MDButton variant="gradient" color="info" fullWidth type="submit">Submit Application</MDButton>
+                            <MDInput label="Reason" multiline rows={4} fullWidth value={leaveReason} onChange={(e) => setLeaveReason(e.target.value)} sx={{mb: 3}} />
+                            <MDButton variant="gradient" color="info" fullWidth type="submit">Submit Request</MDButton>
                         </MDBox>
                     </ModernCard>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                    <ModernCard title="Your Leave Tracker" icon="history" color="info">
-                        {myLeaveHistory.length === 0 ? <MDTypography variant="button" color="text">No previous requests found.</MDTypography> : (
+                    <ModernCard title="Your Leave Log" icon="history" color="info">
+                        {myLeaveHistory.length === 0 ? <MDTypography variant="button" color="text">No history found.</MDTypography> : (
                           <List>
                               {myLeaveHistory.map((item, i) => (
                                 <ListItem key={i} sx={{ px: 0, py: 1.5, borderBottom: "1px solid #f8f9fa" }}>
                                     <ListItemText
                                       primary={<MDTypography variant="button" fontWeight="bold">{item.startDate}</MDTypography>}
-                                      secondary={<MDTypography variant="caption" color="text">{item.reason}</MDTypography>}
+                                      secondary={<MDTypography variant="caption">{item.reason}</MDTypography>}
                                     />
-                                    <Chip
-                                      label={item.status}
-                                      size="small"
-                                      color={item.status === 'PENDING' ? 'warning' : item.status === 'APPROVED' ? 'success' : 'error'}
-                                      sx={{ fontWeight: "bold", color: "white" }}
-                                    />
+                                    <Chip label={item.status} size="small" color={item.status === 'PENDING' ? 'warning' : item.status === 'APPROVED' ? 'success' : 'error'} sx={{ fontWeight: "bold", color: "white" }} />
                                 </ListItem>
                               ))}
                           </List>
@@ -315,8 +298,9 @@ const StaffDashboard = ({ activeTab, user }) => {
       </MDBox>
     );
 };
+
 // ==============================
-// 3. MAIN PROFILE CONTAINER
+// 3. MAIN PROFILE
 // ==============================
 function Profile() {
     const [activeTab, setActiveTab] = useState(0);
@@ -347,20 +331,8 @@ function Profile() {
               </MDBox>
               <Card sx={{ position: "relative", mt: -8, mx: 3, py: 3, px: 3, boxShadow: "0px 10px 30px rgba(0,0,0,0.1)", borderRadius: "16px" }}>
                   <Grid container spacing={3} alignItems="center">
-                      <Grid item>
-                          <Avatar sx={{ width: 70, height: 70, bgcolor: "#344767", fontSize: "1.8rem", shadow: "lg" }}>
-                              {user.fullName ? user.fullName[0].toUpperCase() : "U"}
-                          </Avatar>
-                      </Grid>
-                      <Grid item>
-                          <MDBox lineHeight={1}>
-                              <MDTypography variant="h4" fontWeight="bold">{user.fullName}</MDTypography>
-                              <MDBox display="flex" alignItems="center" mt={0.5}>
-                                  <MDTypography variant="button" color="text" fontWeight="regular" mr={1}>{user.email}</MDTypography>
-                                  <Chip label={user.role.toUpperCase()} size="small" color={user.role === 'admin' ? "error" : "success"} sx={{ fontWeight: "bold", color: "white", height: "20px" }} />
-                              </MDBox>
-                          </MDBox>
-                      </Grid>
+                      <Grid item><Avatar sx={{ width: 70, height: 70, bgcolor: "#344767", fontSize: "1.8rem" }}>{user.fullName ? user.fullName[0].toUpperCase() : "U"}</Avatar></Grid>
+                      <Grid item><MDBox lineHeight={1}><MDTypography variant="h4" fontWeight="bold">{user.fullName}</MDTypography><MDBox display="flex" alignItems="center" mt={0.5}><MDTypography variant="button" color="text" mr={1}>{user.email}</MDTypography><Chip label={user.role.toUpperCase()} size="small" color={user.role === 'admin' ? "error" : "success"} sx={{ fontWeight: "bold", color: "white", height: "20px" }} /></MDBox></MDBox></Grid>
                       <Grid item xs={12} md={6} lg={4} sx={{ ml: "auto" }}>
                           <AppBar position="static" sx={{ bgcolor: "transparent", boxShadow: "none" }}>
                               <Tabs orientation="horizontal" value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ "& .MuiTabs-indicator": { height: "4px", borderRadius: "2px" } }}>
@@ -373,29 +345,14 @@ function Profile() {
                   </Grid>
               </Card>
           </MDBox>
-
           <MDBox mb={5}>
-              {activeTab !== 2 && (
-                user.role === 'admin' ? <AdminDashboard activeTab={activeTab} /> : <StaffDashboard activeTab={activeTab} user={user} />
-              )}
-
+              {activeTab !== 2 && (user.role === 'admin' ? <AdminDashboard activeTab={activeTab} /> : <StaffDashboard activeTab={activeTab} user={user} />)}
               {activeTab === 2 && (
-                <ModernCard title="Security & Profile" icon="security" color="dark">
+                <ModernCard title="Account Settings" icon="security" color="dark">
                     <Grid container spacing={4}>
-                        <Grid item xs={12} md={6}>
-                            <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>ACCOUNT DETAILS</MDTypography>
-                            <MDInput label="Display Name" value={user.fullName} fullWidth sx={{mb:2}} />
-                            <MDInput label="Registered Email" value={user.email} fullWidth disabled />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>AUTHENTICATION</MDTypography>
-                            <MDInput label="Update Password" type="password" fullWidth placeholder="New Secure Password" sx={{mb: 2}} />
-                            <MDBox display="flex" alignItems="center"><Switch defaultChecked /><MDTypography variant="button" color="text" ml={1}>Biometric Login</MDTypography></MDBox>
-                        </Grid>
-                        <Grid item xs={12} textAlign="right">
-                            <Divider sx={{my: 3}} />
-                            <MDButton variant="gradient" color="info" shadow="lg">Save Updated Info</MDButton>
-                        </Grid>
+                        <Grid item xs={12} md={6}><MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>ACCOUNT DETAILS</MDTypography><MDInput label="Name" value={user.fullName} fullWidth sx={{mb:2}} /><MDInput label="Email" value={user.email} fullWidth disabled /></Grid>
+                        <Grid item xs={12} md={6}><MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>SECURITY</MDTypography><MDInput label="New Password" type="password" fullWidth placeholder="New Password" sx={{mb: 2}} /><MDBox display="flex" alignItems="center"><Switch defaultChecked /><MDTypography variant="button" color="text" ml={1}>Notifications</MDTypography></MDBox></Grid>
+                        <Grid item xs={12} textAlign="right"><Divider sx={{my: 3}} /><MDButton variant="gradient" color="info">Save Changes</MDButton></Grid>
                     </Grid>
                 </ModernCard>
               )}
