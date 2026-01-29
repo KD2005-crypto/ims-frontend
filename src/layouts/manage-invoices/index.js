@@ -27,7 +27,8 @@ import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
 function ManageInvoices() {
-  // ✅ 1. GET USER ROLE
+  // ✅ 1. SECURITY CHECK: GET USER ROLE
+  // This determines if the Delete button is visible or hidden
   const role = localStorage.getItem("role");
 
   const [invoices, setInvoices] = useState([]);
@@ -121,11 +122,13 @@ function ManageInvoices() {
 
   // PERMANENT DELETE FUNCTION
   const deletePermanently = async (id) => {
-    if(!window.confirm("⚠️ ARE YOU SURE? This will permanently delete the invoice. This cannot be undone.")) return;
+    // Double confirmation for safety
+    if(!window.confirm("⚠️ ADMIN WARNING: Are you sure?\n\nThis will permanently delete the invoice from the database. This CANNOT be undone.")) return;
+
     try {
       await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}`, { method: 'DELETE' });
-      fetchInvoices(); // Refresh list
-      alert("Invoice deleted forever.");
+      fetchInvoices();
+      alert("Invoice deleted permanently.");
     } catch (err) {
       alert("Delete failed.");
     }
@@ -163,157 +166,164 @@ function ManageInvoices() {
   }, { total: 0, paid: 0, pending: 0 }), [processedInvoices]);
 
   const StatusLabel = ({ text, color }) => (
-      <span style={{
-        padding: "5px 10px",
-        borderRadius: "6px",
-        fontSize: "11px",
-        fontWeight: "bold",
-        color: "white",
-        backgroundColor: color === "success" ? "#4CAF50" : color === "info" ? "#2196F3" : "#FF9800",
-      }}>
+    <span style={{
+      padding: "5px 10px",
+      borderRadius: "6px",
+      fontSize: "11px",
+      fontWeight: "bold",
+      color: "white",
+      backgroundColor: color === "success" ? "#4CAF50" : color === "info" ? "#2196F3" : "#FF9800",
+    }}>
           {text}
       </span>
   );
 
   return (
-      <DashboardLayout>
-        <DashboardNavbar />
-        <MDBox pt={6} pb={3}>
+    <DashboardLayout>
+      <DashboardNavbar />
+      <MDBox pt={6} pb={3}>
 
-          {/* HEADER */}
-          <MDBox display="flex" justifyContent="space-between" mb={3} bgColor="white" p={2} borderRadius="lg" shadow="sm">
-            <MDBox display="flex" alignItems="center">
-              <MDTypography variant="button" fontWeight="bold" mr={2}>Active</MDTypography>
-              <Switch checked={showBackups} onChange={() => setShowBackups(!showBackups)} color="warning" />
-              <MDTypography variant="button" fontWeight="bold" ml={2} color={showBackups ? "error" : "text"}>Backups</MDTypography>
-            </MDBox>
-            <MDBox width="200px">
-              <MDInput label="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            </MDBox>
+        {/* HEADER */}
+        <MDBox display="flex" justifyContent="space-between" mb={3} bgColor="white" p={2} borderRadius="lg" shadow="sm">
+          <MDBox display="flex" alignItems="center">
+            <MDTypography variant="button" fontWeight="bold" mr={2}>Active</MDTypography>
+            <Switch checked={showBackups} onChange={() => setShowBackups(!showBackups)} color="warning" />
+            <MDTypography variant="button" fontWeight="bold" ml={2} color={showBackups ? "error" : "text"}>Backups</MDTypography>
           </MDBox>
-
-          {/* STATS */}
-          <Grid container spacing={3} mb={4}>
-            <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6">{formatMoney(totals.total)}</MDTypography><MDTypography variant="caption">Total Revenue</MDTypography></MDBox></Card></Grid>
-            <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="success">{formatMoney(totals.paid)}</MDTypography><MDTypography variant="caption">Total Collected</MDTypography></MDBox></Card></Grid>
-            <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(totals.pending)}</MDTypography><MDTypography variant="caption">Total Due</MDTypography></MDBox></Card></Grid>
-          </Grid>
-
-          {/* LIST */}
-          <Card>
-            <MDBox p={3}>
-              {processedInvoices.length === 0 && <MDTypography textAlign="center">No invoices found.</MDTypography>}
-
-              {processedInvoices.map((inv) => {
-                const { total, paid, balance, status, color } = getFinancials(inv);
-
-                return (
-                    <MDBox key={inv.id} mb={2} p={2} sx={{ border: "1px solid #eee", borderRadius: "8px", background: showBackups ? "#fff0f0" : "white" }}>
-                      <Grid container alignItems="center">
-                        {/* INFO */}
-                        <Grid item xs={12} md={4}>
-                          <MDTypography variant="button" fontWeight="bold" fontSize="1rem">#{inv.invoiceNo}</MDTypography>
-                          <MDTypography variant="caption" display="block" color="text" fontWeight="medium">{inv.groupName}</MDTypography>
-                        </Grid>
-
-                        {/* STATUS */}
-                        <Grid item xs={6} md={2} textAlign="center">
-                          <StatusLabel text={status} color={color} />
-                        </Grid>
-
-                        {/* MONEY */}
-                        <Grid item xs={6} md={3} textAlign="right" pr={2}>
-                          <MDTypography variant="caption" display="block" color="text">Total: {formatMoney(total)}</MDTypography>
-                          {paid > 0 && <MDTypography variant="caption" display="block" color="success">Paid: {formatMoney(paid)}</MDTypography>}
-
-                          {balance > 0 ? (
-                              <MDTypography variant="button" color="error" fontWeight="bold">Due: {formatMoney(balance)}</MDTypography>
-                          ) : (
-                              <MDTypography variant="caption" color="success" fontWeight="bold">Fully Paid</MDTypography>
-                          )}
-                        </Grid>
-
-                        {/* ACTIONS */}
-                        <Grid item xs={12} md={3} textAlign="right">
-                          {/* 1. Payment (Only if Active & Balance > 0) */}
-                          {!showBackups && balance > 0 && (
-                              <MDButton variant="text" color="success" onClick={() => handleOpenPayment(inv)} title="Record Payment">
-                                <Icon>payment</Icon>
-                              </MDButton>
-                          )}
-
-                          {/* 2. Download PDF (Always visible) */}
-                          <MDButton variant="text" color="info" onClick={() => downloadPdf(inv.id)} title="Download PDF">
-                            <Icon>download</Icon>
-                          </MDButton>
-
-                          {/* 3. Archive / Restore Toggle */}
-                          <MDButton variant="text" color="warning" onClick={() => {
-                            if(window.confirm(showBackups ? "Restore this invoice?" : "Move to Archive?")) {
-                              const endpoint = showBackups ? "restore" : "archive";
-                              fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
-                            }
-                          }} title={showBackups ? "Restore" : "Archive"}>
-                            <Icon>{showBackups ? "restore" : "archive"}</Icon>
-                          </MDButton>
-
-                          {/* 4. 🔴 PERMANENT DELETE (LOCKED FOR STAFF) */}
-                          {showBackups && role === "admin" && (
-                              <MDButton variant="text" color="error" onClick={() => deletePermanently(inv.id)} title="Delete Forever" style={{ marginLeft: '8px' }}>
-                                <Icon>delete_forever</Icon>
-                              </MDButton>
-                          )}
-                        </Grid>
-                      </Grid>
-                    </MDBox>
-                );
-              })}
-            </MDBox>
-          </Card>
-
-          {/* PAYMENT MODAL */}
-          <Dialog open={openPaymentModal} onClose={() => setOpenPaymentModal(false)} maxWidth="sm" fullWidth>
-            <DialogTitle style={{ borderBottom: "1px solid #eee" }}>Record Payment</DialogTitle>
-            <DialogContent>
-              {selectedInvoice && (() => {
-                const { total, paid, balance } = getFinancials(selectedInvoice);
-                return (
-                    <MDBox pt={2}>
-                      <MDBox bgColor="#f8f9fa" p={2} borderRadius="lg" mb={3}>
-                        <Grid container spacing={2}>
-                          <Grid item xs={6}><MDTypography variant="caption">Customer</MDTypography><MDTypography variant="button" fontWeight="bold" display="block">{selectedInvoice.groupName}</MDTypography></Grid>
-                          <Grid item xs={6} textAlign="right"><MDTypography variant="caption">Invoice #</MDTypography><MDTypography variant="button" fontWeight="bold" display="block">{selectedInvoice.invoiceNo}</MDTypography></Grid>
-                          <Grid item xs={12}><Divider /></Grid>
-                          <Grid item xs={4}><MDTypography variant="caption">Total</MDTypography><MDTypography variant="h6">{formatMoney(total)}</MDTypography></Grid>
-                          <Grid item xs={4} textAlign="center"><MDTypography variant="caption" color="success">Paid</MDTypography><MDTypography variant="h6" color="success">{formatMoney(paid)}</MDTypography></Grid>
-                          <Grid item xs={4} textAlign="right"><MDTypography variant="caption" color="error">Due</MDTypography><MDTypography variant="h6" color="error">{formatMoney(balance)}</MDTypography></Grid>
-                        </Grid>
-                      </MDBox>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12}><MDInput label="Amount (Rs)" type="number" fullWidth value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} /></Grid>
-                        <Grid item xs={12}>
-                          <FormControl fullWidth>
-                            <InputLabel>Mode</InputLabel>
-                            <Select value={paymentMode} label="Mode" onChange={(e) => setPaymentMode(e.target.value)} style={{ padding: "12px" }}>
-                              <MenuItem value="UPI">UPI</MenuItem><MenuItem value="Cash">Cash</MenuItem><MenuItem value="Bank">Bank Transfer</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        <Grid item xs={12}><MDInput label="Note / Txn ID" fullWidth value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} /></Grid>
-                      </Grid>
-                    </MDBox>
-                );
-              })()}
-            </DialogContent>
-            <DialogActions style={{ padding: "16px 24px" }}>
-              <MDButton onClick={() => setOpenPaymentModal(false)} color="secondary">Cancel</MDButton>
-              <MDButton onClick={submitPayment} color="success" variant="gradient">Confirm</MDButton>
-            </DialogActions>
-          </Dialog>
-
+          <MDBox width="200px">
+            <MDInput label="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </MDBox>
         </MDBox>
-        <Footer />
-      </DashboardLayout>
+
+        {/* STATS */}
+        <Grid container spacing={3} mb={4}>
+          <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6">{formatMoney(totals.total)}</MDTypography><MDTypography variant="caption">Total Revenue</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="success">{formatMoney(totals.paid)}</MDTypography><MDTypography variant="caption">Total Collected</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(totals.pending)}</MDTypography><MDTypography variant="caption">Total Due</MDTypography></MDBox></Card></Grid>
+        </Grid>
+
+        {/* LIST */}
+        <Card>
+          <MDBox p={3}>
+            {processedInvoices.length === 0 && <MDTypography textAlign="center">No invoices found.</MDTypography>}
+
+            {processedInvoices.map((inv) => {
+              const { total, paid, balance, status, color } = getFinancials(inv);
+
+              return (
+                <MDBox key={inv.id} mb={2} p={2} sx={{ border: "1px solid #eee", borderRadius: "8px", background: showBackups ? "#fff0f0" : "white" }}>
+                  <Grid container alignItems="center">
+                    {/* INFO */}
+                    <Grid item xs={12} md={4}>
+                      <MDTypography variant="button" fontWeight="bold" fontSize="1rem">#{inv.invoiceNo}</MDTypography>
+                      <MDTypography variant="caption" display="block" color="text" fontWeight="medium">{inv.groupName}</MDTypography>
+                    </Grid>
+
+                    {/* STATUS */}
+                    <Grid item xs={6} md={2} textAlign="center">
+                      <StatusLabel text={status} color={color} />
+                    </Grid>
+
+                    {/* MONEY */}
+                    <Grid item xs={6} md={3} textAlign="right" pr={2}>
+                      <MDTypography variant="caption" display="block" color="text">Total: {formatMoney(total)}</MDTypography>
+                      {paid > 0 && <MDTypography variant="caption" display="block" color="success">Paid: {formatMoney(paid)}</MDTypography>}
+
+                      {balance > 0 ? (
+                        <MDTypography variant="button" color="error" fontWeight="bold">Due: {formatMoney(balance)}</MDTypography>
+                      ) : (
+                        <MDTypography variant="caption" color="success" fontWeight="bold">Fully Paid</MDTypography>
+                      )}
+                    </Grid>
+
+                    {/* ACTIONS */}
+                    <Grid item xs={12} md={3} textAlign="right">
+                      {/* 1. Payment (Active only) */}
+                      {!showBackups && balance > 0 && (
+                        <MDButton variant="text" color="success" onClick={() => handleOpenPayment(inv)} title="Record Payment">
+                          <Icon>payment</Icon>
+                        </MDButton>
+                      )}
+
+                      {/* 2. Download PDF */}
+                      <MDButton variant="text" color="info" onClick={() => downloadPdf(inv.id)} title="Download PDF">
+                        <Icon>download</Icon>
+                      </MDButton>
+
+                      {/* 3. Archive / Restore */}
+                      <MDButton variant="text" color="warning" onClick={() => {
+                        if(window.confirm(showBackups ? "Restore this invoice?" : "Move to Archive?")) {
+                          const endpoint = showBackups ? "restore" : "archive";
+                          fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
+                        }
+                      }} title={showBackups ? "Restore" : "Archive"}>
+                        <Icon>{showBackups ? "restore" : "archive"}</Icon>
+                      </MDButton>
+
+                      {/* 4. ✅ ADMIN ONLY DELETE BUTTON */}
+                      {/* Visible on Active OR Backups, but ONLY for Admins */}
+                      {role === "admin" && (
+                        <MDButton
+                          variant="text"
+                          color="error"
+                          onClick={() => deletePermanently(inv.id)}
+                          title="Delete Forever"
+                          style={{ marginLeft: '8px' }}
+                        >
+                          <Icon>delete_forever</Icon>
+                        </MDButton>
+                      )}
+                    </Grid>
+                  </Grid>
+                </MDBox>
+              );
+            })}
+          </MDBox>
+        </Card>
+
+        {/* PAYMENT MODAL */}
+        <Dialog open={openPaymentModal} onClose={() => setOpenPaymentModal(false)} maxWidth="sm" fullWidth>
+          <DialogTitle style={{ borderBottom: "1px solid #eee" }}>Record Payment</DialogTitle>
+          <DialogContent>
+            {selectedInvoice && (() => {
+              const { total, paid, balance } = getFinancials(selectedInvoice);
+              return (
+                <MDBox pt={2}>
+                  <MDBox bgColor="#f8f9fa" p={2} borderRadius="lg" mb={3}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}><MDTypography variant="caption">Customer</MDTypography><MDTypography variant="button" fontWeight="bold" display="block">{selectedInvoice.groupName}</MDTypography></Grid>
+                      <Grid item xs={6} textAlign="right"><MDTypography variant="caption">Invoice #</MDTypography><MDTypography variant="button" fontWeight="bold" display="block">{selectedInvoice.invoiceNo}</MDTypography></Grid>
+                      <Grid item xs={12}><Divider /></Grid>
+                      <Grid item xs={4}><MDTypography variant="caption">Total</MDTypography><MDTypography variant="h6">{formatMoney(total)}</MDTypography></Grid>
+                      <Grid item xs={4} textAlign="center"><MDTypography variant="caption" color="success">Paid</MDTypography><MDTypography variant="h6" color="success">{formatMoney(paid)}</MDTypography></Grid>
+                      <Grid item xs={4} textAlign="right"><MDTypography variant="caption" color="error">Due</MDTypography><MDTypography variant="h6" color="error">{formatMoney(balance)}</MDTypography></Grid>
+                    </Grid>
+                  </MDBox>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}><MDInput label="Amount (Rs)" type="number" fullWidth value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} /></Grid>
+                    <Grid item xs={12}>
+                      <FormControl fullWidth>
+                        <InputLabel>Mode</InputLabel>
+                        <Select value={paymentMode} label="Mode" onChange={(e) => setPaymentMode(e.target.value)} style={{ padding: "12px" }}>
+                          <MenuItem value="UPI">UPI</MenuItem><MenuItem value="Cash">Cash</MenuItem><MenuItem value="Bank">Bank Transfer</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12}><MDInput label="Note / Txn ID" fullWidth value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} /></Grid>
+                  </Grid>
+                </MDBox>
+              );
+            })()}
+          </DialogContent>
+          <DialogActions style={{ padding: "16px 24px" }}>
+            <MDButton onClick={() => setOpenPaymentModal(false)} color="secondary">Cancel</MDButton>
+            <MDButton onClick={submitPayment} color="success" variant="gradient">Confirm</MDButton>
+          </DialogActions>
+        </Dialog>
+
+      </MDBox>
+      <Footer />
+    </DashboardLayout>
   );
 }
 
