@@ -28,7 +28,6 @@ import Footer from "examples/Footer";
 
 function ManageInvoices() {
   // ✅ 1. ROLE CHECK
-  // We use this to decide if we show the "Backups" Toggle
   const rawRole = localStorage.getItem("role");
   const role = (rawRole || "").toLowerCase().trim();
 
@@ -155,6 +154,7 @@ function ManageInvoices() {
     });
   }, [invoices, search, showBackups]);
 
+  // CALC 1: Totals for the CURRENT list (Active OR Backup)
   const totals = useMemo(() => processedInvoices.reduce((acc, curr) => {
     const { total, paid, balance } = getFinancials(curr);
     acc.total += total;
@@ -162,6 +162,13 @@ function ManageInvoices() {
     acc.pending += balance;
     return acc;
   }, { total: 0, paid: 0, pending: 0 }), [processedInvoices]);
+
+  // ✅ CALC 2: GRAND TOTAL of ARCHIVED (For the 4th Card)
+  // We calculate this from the full list, regardless of what we are viewing.
+  const archivedGrandTotal = useMemo(() => invoices
+      .filter(inv => inv.archived)
+      .reduce((sum, inv) => sum + getFinancials(inv).total, 0),
+    [invoices]);
 
   const StatusLabel = ({ text, color }) => (
     <span style={{
@@ -176,6 +183,9 @@ function ManageInvoices() {
       </span>
   );
 
+  // Dynamic Grid Width: 3 columns normally, 4 columns when showing the Backup Stats
+  const cardGridSize = showBackups ? 3 : 4;
+
   return (
     <DashboardLayout>
       <DashboardNavbar />
@@ -184,7 +194,7 @@ function ManageInvoices() {
         {/* HEADER */}
         <MDBox display="flex" justifyContent="space-between" mb={3} bgColor="white" p={2} borderRadius="lg" shadow="sm">
 
-          {/* ✅ YOUR IDEA IMPLEMENTED: Hide the Toggle completely for non-admins */}
+          {/* TOGGLE: Hidden for standard users */}
           {role === "admin" ? (
             <MDBox display="flex" alignItems="center">
               <MDTypography variant="button" fontWeight="bold" mr={2}>Active</MDTypography>
@@ -192,7 +202,6 @@ function ManageInvoices() {
               <MDTypography variant="button" fontWeight="bold" ml={2} color={showBackups ? "error" : "text"}>Backups</MDTypography>
             </MDBox>
           ) : (
-            // Users just see a static title
             <MDTypography variant="h6" ml={2}>Active Invoices</MDTypography>
           )}
 
@@ -201,11 +210,27 @@ function ManageInvoices() {
           </MDBox>
         </MDBox>
 
-        {/* STATS */}
+        {/* STATS CARDS */}
         <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6">{formatMoney(totals.total)}</MDTypography><MDTypography variant="caption">Total Revenue</MDTypography></MDBox></Card></Grid>
-          <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="success">{formatMoney(totals.paid)}</MDTypography><MDTypography variant="caption">Total Collected</MDTypography></MDBox></Card></Grid>
-          <Grid item xs={12} md={4}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(totals.pending)}</MDTypography><MDTypography variant="caption">Total Due</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6">{formatMoney(totals.total)}</MDTypography><MDTypography variant="caption">{showBackups ? "Backup Revenue" : "Total Revenue"}</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="success">{formatMoney(totals.paid)}</MDTypography><MDTypography variant="caption">Total Collected</MDTypography></MDBox></Card></Grid>
+          <Grid item xs={12} md={cardGridSize}><Card><MDBox p={2} textAlign="center"><MDTypography variant="h6" color="error">{formatMoney(totals.pending)}</MDTypography><MDTypography variant="caption">Total Due</MDTypography></MDBox></Card></Grid>
+
+          {/* ✅ NEW 4TH CARD: Only visible in Backup Mode */}
+          {showBackups && (
+            <Grid item xs={12} md={3}>
+              <Card sx={{ border: "1px solid #ffcdd2", backgroundColor: "#ffebee" }}>
+                <MDBox p={2} textAlign="center">
+                  <MDTypography variant="h6" color="error">
+                    {formatMoney(archivedGrandTotal)}
+                  </MDTypography>
+                  <MDTypography variant="caption" color="error" fontWeight="bold">
+                    Total Archived Value
+                  </MDTypography>
+                </MDBox>
+              </Card>
+            </Grid>
+          )}
         </Grid>
 
         {/* LIST */}
@@ -250,21 +275,20 @@ function ManageInvoices() {
                         <Icon>download</Icon>
                       </MDButton>
 
-                      {/* 3. Archive / Restore (Only Admins see this because only admins see the toggle!) */}
-                      {role === "admin" && (
-                        <MDButton variant="text" color="warning" onClick={() => {
-                          if(window.confirm(showBackups ? "Restore?" : "Archive?")) {
-                            const endpoint = showBackups ? "restore" : "archive";
-                            fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
-                          }
-                        }} title={showBackups ? "Restore" : "Archive"}>
-                          <Icon>{showBackups ? "restore" : "archive"}</Icon>
-                        </MDButton>
-                      )}
+                      {/* 3. ✅ ARCHIVE / RESTORE (Available to ALL) */}
+                      {/* User sees "Archive" -> Clicks -> It vanishes (to them). */}
+                      {/* Admin sees "Restore" (if in backup mode) -> Clicks -> It returns. */}
+                      <MDButton variant="text" color="warning" onClick={() => {
+                        if(window.confirm(showBackups ? "Restore this invoice?" : "Archive this invoice?")) {
+                          const endpoint = showBackups ? "restore" : "archive";
+                          fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
+                        }
+                      }} title={showBackups ? "Restore" : "Archive"}>
+                        <Icon>{showBackups ? "restore" : "archive"}</Icon>
+                      </MDButton>
 
-                      {/* 4. ✅ DELETE BUTTON (Only in Backup Mode) */}
-                      {/* User Logic: Users can't see this because they can't switch to Backup Mode! */}
-                      {showBackups && (
+                      {/* 4. ✅ DELETE BUTTON (Only in Backup Mode & Admin Only) */}
+                      {showBackups && role === "admin" && (
                         <MDButton
                           variant="text"
                           color="error"
