@@ -27,9 +27,10 @@ import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 
 function ManageInvoices() {
-  // ✅ 1. SECURITY CHECK: GET USER ROLE
-  // This determines if the Delete button is visible or hidden
-  const role = localStorage.getItem("role");
+  // ✅ 1. ROLE CHECK
+  // We use this to decide if we show the "Backups" Toggle
+  const rawRole = localStorage.getItem("role");
+  const role = (rawRole || "").toLowerCase().trim();
 
   const [invoices, setInvoices] = useState([]);
   const [showBackups, setShowBackups] = useState(false);
@@ -57,7 +58,7 @@ function ManageInvoices() {
     }
   };
 
-  // --- STRICT MATH LOGIC ---
+  // --- MATH LOGIC ---
   const getVal = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
 
   const getFinancials = (inv) => {
@@ -113,22 +114,19 @@ function ManageInvoices() {
 
       setOpenPaymentModal(false);
       fetchInvoices();
-      alert("Payment Recorded Successfully! Balance updated.");
+      alert("Payment Recorded Successfully!");
 
     } catch (err) {
       alert("Network Error: Could not save payment.");
     }
   };
 
-  // PERMANENT DELETE FUNCTION
+  // PERMANENT DELETE FUNCTION (Only works in Backup Mode)
   const deletePermanently = async (id) => {
-    // Double confirmation for safety
-    if(!window.confirm("⚠️ ADMIN WARNING: Are you sure?\n\nThis will permanently delete the invoice from the database. This CANNOT be undone.")) return;
-
+    if(!window.confirm("⚠️ PERMANENT DELETE: This cannot be undone. Are you sure?")) return;
     try {
       await fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${id}`, { method: 'DELETE' });
       fetchInvoices();
-      alert("Invoice deleted permanently.");
     } catch (err) {
       alert("Delete failed.");
     }
@@ -145,7 +143,7 @@ function ManageInvoices() {
     } catch (err) { alert("PDF Failed"); }
   };
 
-  // --- FILTER & CALCULATE ---
+  // --- FILTER ---
   const processedInvoices = useMemo(() => {
     return invoices.filter((inv) => {
       const isArchived = !!inv.archived;
@@ -185,11 +183,19 @@ function ManageInvoices() {
 
         {/* HEADER */}
         <MDBox display="flex" justifyContent="space-between" mb={3} bgColor="white" p={2} borderRadius="lg" shadow="sm">
-          <MDBox display="flex" alignItems="center">
-            <MDTypography variant="button" fontWeight="bold" mr={2}>Active</MDTypography>
-            <Switch checked={showBackups} onChange={() => setShowBackups(!showBackups)} color="warning" />
-            <MDTypography variant="button" fontWeight="bold" ml={2} color={showBackups ? "error" : "text"}>Backups</MDTypography>
-          </MDBox>
+
+          {/* ✅ YOUR IDEA IMPLEMENTED: Hide the Toggle completely for non-admins */}
+          {role === "admin" ? (
+            <MDBox display="flex" alignItems="center">
+              <MDTypography variant="button" fontWeight="bold" mr={2}>Active</MDTypography>
+              <Switch checked={showBackups} onChange={() => setShowBackups(!showBackups)} color="warning" />
+              <MDTypography variant="button" fontWeight="bold" ml={2} color={showBackups ? "error" : "text"}>Backups</MDTypography>
+            </MDBox>
+          ) : (
+            // Users just see a static title
+            <MDTypography variant="h6" ml={2}>Active Invoices</MDTypography>
+          )}
+
           <MDBox width="200px">
             <MDInput label="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </MDBox>
@@ -213,22 +219,17 @@ function ManageInvoices() {
               return (
                 <MDBox key={inv.id} mb={2} p={2} sx={{ border: "1px solid #eee", borderRadius: "8px", background: showBackups ? "#fff0f0" : "white" }}>
                   <Grid container alignItems="center">
-                    {/* INFO */}
                     <Grid item xs={12} md={4}>
                       <MDTypography variant="button" fontWeight="bold" fontSize="1rem">#{inv.invoiceNo}</MDTypography>
                       <MDTypography variant="caption" display="block" color="text" fontWeight="medium">{inv.groupName}</MDTypography>
                     </Grid>
 
-                    {/* STATUS */}
                     <Grid item xs={6} md={2} textAlign="center">
                       <StatusLabel text={status} color={color} />
                     </Grid>
 
-                    {/* MONEY */}
                     <Grid item xs={6} md={3} textAlign="right" pr={2}>
                       <MDTypography variant="caption" display="block" color="text">Total: {formatMoney(total)}</MDTypography>
-                      {paid > 0 && <MDTypography variant="caption" display="block" color="success">Paid: {formatMoney(paid)}</MDTypography>}
-
                       {balance > 0 ? (
                         <MDTypography variant="button" color="error" fontWeight="bold">Due: {formatMoney(balance)}</MDTypography>
                       ) : (
@@ -236,7 +237,6 @@ function ManageInvoices() {
                       )}
                     </Grid>
 
-                    {/* ACTIONS */}
                     <Grid item xs={12} md={3} textAlign="right">
                       {/* 1. Payment (Active only) */}
                       {!showBackups && balance > 0 && (
@@ -250,29 +250,32 @@ function ManageInvoices() {
                         <Icon>download</Icon>
                       </MDButton>
 
-                      {/* 3. Archive / Restore */}
-                      <MDButton variant="text" color="warning" onClick={() => {
-                        if(window.confirm(showBackups ? "Restore this invoice?" : "Move to Archive?")) {
-                          const endpoint = showBackups ? "restore" : "archive";
-                          fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
-                        }
-                      }} title={showBackups ? "Restore" : "Archive"}>
-                        <Icon>{showBackups ? "restore" : "archive"}</Icon>
-                      </MDButton>
-
-                      {/* 4. ✅ ADMIN ONLY DELETE BUTTON */}
-                      {/* Visible on Active OR Backups, but ONLY for Admins */}
+                      {/* 3. Archive / Restore (Only Admins see this because only admins see the toggle!) */}
                       {role === "admin" && (
+                        <MDButton variant="text" color="warning" onClick={() => {
+                          if(window.confirm(showBackups ? "Restore?" : "Archive?")) {
+                            const endpoint = showBackups ? "restore" : "archive";
+                            fetch(`https://ims-backend-production-e15c.up.railway.app/api/invoices/${inv.id}/${endpoint}`, { method: 'PUT' }).then(fetchInvoices);
+                          }
+                        }} title={showBackups ? "Restore" : "Archive"}>
+                          <Icon>{showBackups ? "restore" : "archive"}</Icon>
+                        </MDButton>
+                      )}
+
+                      {/* 4. ✅ DELETE BUTTON (Only in Backup Mode) */}
+                      {/* User Logic: Users can't see this because they can't switch to Backup Mode! */}
+                      {showBackups && (
                         <MDButton
                           variant="text"
                           color="error"
                           onClick={() => deletePermanently(inv.id)}
                           title="Delete Forever"
-                          style={{ marginLeft: '8px' }}
+                          sx={{ marginLeft: '8px' }}
                         >
                           <Icon>delete_forever</Icon>
                         </MDButton>
                       )}
+
                     </Grid>
                   </Grid>
                 </MDBox>
@@ -283,41 +286,24 @@ function ManageInvoices() {
 
         {/* PAYMENT MODAL */}
         <Dialog open={openPaymentModal} onClose={() => setOpenPaymentModal(false)} maxWidth="sm" fullWidth>
-          <DialogTitle style={{ borderBottom: "1px solid #eee" }}>Record Payment</DialogTitle>
+          <DialogTitle>Record Payment</DialogTitle>
           <DialogContent>
-            {selectedInvoice && (() => {
-              const { total, paid, balance } = getFinancials(selectedInvoice);
-              return (
-                <MDBox pt={2}>
-                  <MDBox bgColor="#f8f9fa" p={2} borderRadius="lg" mb={3}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}><MDTypography variant="caption">Customer</MDTypography><MDTypography variant="button" fontWeight="bold" display="block">{selectedInvoice.groupName}</MDTypography></Grid>
-                      <Grid item xs={6} textAlign="right"><MDTypography variant="caption">Invoice #</MDTypography><MDTypography variant="button" fontWeight="bold" display="block">{selectedInvoice.invoiceNo}</MDTypography></Grid>
-                      <Grid item xs={12}><Divider /></Grid>
-                      <Grid item xs={4}><MDTypography variant="caption">Total</MDTypography><MDTypography variant="h6">{formatMoney(total)}</MDTypography></Grid>
-                      <Grid item xs={4} textAlign="center"><MDTypography variant="caption" color="success">Paid</MDTypography><MDTypography variant="h6" color="success">{formatMoney(paid)}</MDTypography></Grid>
-                      <Grid item xs={4} textAlign="right"><MDTypography variant="caption" color="error">Due</MDTypography><MDTypography variant="h6" color="error">{formatMoney(balance)}</MDTypography></Grid>
-                    </Grid>
-                  </MDBox>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}><MDInput label="Amount (Rs)" type="number" fullWidth value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} /></Grid>
-                    <Grid item xs={12}>
-                      <FormControl fullWidth>
-                        <InputLabel>Mode</InputLabel>
-                        <Select value={paymentMode} label="Mode" onChange={(e) => setPaymentMode(e.target.value)} style={{ padding: "12px" }}>
-                          <MenuItem value="UPI">UPI</MenuItem><MenuItem value="Cash">Cash</MenuItem><MenuItem value="Bank">Bank Transfer</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12}><MDInput label="Note / Txn ID" fullWidth value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} /></Grid>
-                  </Grid>
-                </MDBox>
-              );
-            })()}
+            <MDBox pt={2}>
+              <MDInput label="Amount" type="number" fullWidth value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+              <br /><br />
+              <FormControl fullWidth>
+                <InputLabel>Mode</InputLabel>
+                <Select value={paymentMode} label="Mode" onChange={(e) => setPaymentMode(e.target.value)} sx={{ height: 45 }}>
+                  <MenuItem value="UPI">UPI</MenuItem><MenuItem value="Cash">Cash</MenuItem><MenuItem value="Bank">Bank Transfer</MenuItem>
+                </Select>
+              </FormControl>
+              <br /><br />
+              <MDInput label="Note / Txn ID" fullWidth value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} />
+            </MDBox>
           </DialogContent>
-          <DialogActions style={{ padding: "16px 24px" }}>
+          <DialogActions>
             <MDButton onClick={() => setOpenPaymentModal(false)} color="secondary">Cancel</MDButton>
-            <MDButton onClick={submitPayment} color="success" variant="gradient">Confirm</MDButton>
+            <MDButton onClick={submitPayment} color="success">Confirm</MDButton>
           </DialogActions>
         </Dialog>
 
