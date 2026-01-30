@@ -1,5 +1,11 @@
-import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+/**
+ =========================================================
+ * Material Dashboard 2 React - v2.2.0
+ =========================================================
+ */
+
+// react-router-dom components
+import { Link } from "react-router-dom";
 
 // @mui material components
 import Card from "@mui/material/Card";
@@ -11,141 +17,105 @@ import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
 
 // Authentication layout components
-import CoverLayout from "layouts/authentication/components/CoverLayout";
+// ✅ WE USE BASIC LAYOUT HERE TO MATCH SIGN-IN STYLE
+import BasicLayout from "layouts/authentication/components/BasicLayout";
 
 // Images
-import bgImage from "assets/images/bg-reset-cover.jpeg";
+import bgImage from "assets/images/bg-sign-in-basic.jpeg";
 
-// ✅ 1. IMPORT THE CONTEXT HOOKS
-import { useMaterialUIController, setLayout } from "context";
+import { useState } from "react";
+import Swal from "sweetalert2";
+
+const API_URL = "https://ims-backend-production-e15c.up.railway.app/api";
 
 function Cover() {
-  // ✅ 2. INITIALIZE THE CONTROLLER
-  const [, dispatch] = useMaterialUIController();
-
   const [email, setEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const [isResetMode, setIsResetMode] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // ✅ 3. FORCE THE LAYOUT TO "AUTHENTICATION" (Hides Sidebar)
-  useEffect(() => {
-    setLayout(dispatch, "authentication");
-  }, [dispatch]);
-
-  // --- EXISTING LOGIC BELOW (Keep this exactly as is) ---
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const emailParam = params.get("email");
-    if (emailParam) {
-      setEmail(emailParam);
-      setIsResetMode(true);
-    }
-  }, [location]);
-
-  const handleSubmit = async (e) => {
+  const handleReset = async (e) => {
     e.preventDefault();
-    setMessage("Processing...");
-
-    const endpoint = isResetMode
-        ? "https://ims-backend-production-e15c.up.railway.app/api/auth/reset-password"
-        : "https://ims-backend-production-e15c.up.railway.app/api/auth/forgot-password";
-
-    const body = isResetMode
-        ? { email, password: newPassword }
-        : { email };
-
+    if (!email) {
+      Swal.fire("Error", "Please enter your email", "warning");
+      return;
+    }
+    setLoading(true);
     try {
-      const response = await fetch(endpoint, {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email: email }),
       });
-
-      const text = await response.text();
-      setMessage(text);
-
-      if (response.ok && isResetMode) {
-        setTimeout(() => navigate("/authentication/sign-in"), 3000);
+      if (res.ok) {
+        Swal.fire("Sent!", "Check your email for the reset link.", "success");
+        setEmail("");
+      } else {
+        Swal.fire("Error", "Email not found", "error");
       }
-    } catch (err) {
-      setMessage("❌ Server Error. Please try again.");
+    } catch (e) {
+      Swal.fire("Error", "Server error", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-      <CoverLayout coverHeight="50vh" image={bgImage}>
-        <Card>
-          <MDBox
-              variant="gradient"
-              bgColor="info"
-              borderRadius="lg"
-              coloredShadow="success"
-              mx={2}
-              mt={-3}
-              p={3}
-              mb={1}
-              textAlign="center"
-          >
-            <MDTypography variant="h4" fontWeight="medium" color="white" mt={1}>
-              {isResetMode ? "Set New Password" : "Reset Password"}
-            </MDTypography>
-            <MDTypography display="block" variant="button" color="white" my={1}>
-              {isResetMode
-                  ? "Enter your new password below"
-                  : "You will receive an e-mail in maximum 60 seconds"}
-            </MDTypography>
-          </MDBox>
-          <MDBox pt={4} pb={3} px={3}>
-            <MDBox component="form" role="form" onSubmit={handleSubmit}>
-              <MDBox mb={2}>
-                <MDInput
-                    type="email"
-                    label="Email"
-                    variant="standard"
-                    fullWidth
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isResetMode}
-                    required
-                />
-              </MDBox>
+    <BasicLayout image={bgImage}>
+      <Card>
+        {/* ✅ BLUE HEADER (Exact match to Sign In page) */}
+        <MDBox
+          variant="gradient"
+          bgColor="info"
+          borderRadius="lg"
+          coloredShadow="info"
+          mx={2}
+          mt={-3}
+          p={2}
+          mb={1}
+          textAlign="center"
+        >
+          <MDTypography variant="h4" fontWeight="medium" color="white" mt={1}>
+            Reset Password
+          </MDTypography>
+          <MDTypography display="block" variant="button" color="white" my={1}>
+            Enter your email to receive a reset link
+          </MDTypography>
+        </MDBox>
 
-              {isResetMode && (
-                  <MDBox mb={2}>
-                    <MDInput
-                        type="password"
-                        label="New Password"
-                        variant="standard"
-                        fullWidth
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        required
-                    />
-                  </MDBox>
-              )}
-
-              {message && (
-                  <MDBox mb={2} textAlign="center">
-                    <MDTypography variant="caption" color="info" fontWeight="bold">
-                      {message}
-                    </MDTypography>
-                  </MDBox>
-              )}
-
-              <MDBox mt={4} mb={1}>
-                <MDButton variant="gradient" color="info" fullWidth type="submit">
-                  {isResetMode ? "Update Password" : "Send Reset Link"}
-                </MDButton>
-              </MDBox>
-
+        <MDBox pt={4} pb={3} px={3}>
+          <MDBox component="form" role="form" onSubmit={handleReset}>
+            <MDBox mb={2}>
+              <MDInput
+                type="email"
+                label="Email"
+                fullWidth
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </MDBox>
+            <MDBox mt={4} mb={1}>
+              <MDButton variant="gradient" color="info" fullWidth type="submit" disabled={loading}>
+                {loading ? "Sending..." : "Send Reset Link"}
+              </MDButton>
+            </MDBox>
+            <MDBox mt={3} mb={1} textAlign="center">
+              <MDTypography variant="button" color="text">
+                Remembered it?{" "}
+                <MDTypography
+                  component={Link}
+                  to="/authentication/sign-in"
+                  variant="button"
+                  color="info"
+                  fontWeight="medium"
+                  textGradient
+                >
+                  Sign In
+                </MDTypography>
+              </MDTypography>
             </MDBox>
           </MDBox>
-        </Card>
-      </CoverLayout>
+        </MDBox>
+      </Card>
+    </BasicLayout>
   );
 }
 
