@@ -40,15 +40,21 @@ import Swal from "sweetalert2";
 
 const API_URL = "https://ims-backend-production-e15c.up.railway.app/api";
 
+// ✅ HELPER: Converts "13:45:00" -> "1:45 PM"
+const formatTime = (timeStr) => {
+    if (!timeStr) return "--";
+    const [hours, minutes] = timeStr.split(':');
+    const date = new Date();
+    date.setHours(hours);
+    date.setMinutes(minutes);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+};
+
 const ModernCard = ({ children, title, icon, color = "info" }) => (
   <Card sx={{ height: "100%", boxShadow: "0px 4px 20px rgba(0, 0, 0, 0.05)", borderRadius: "16px", border: "1px solid #f0f2f5" }}>
       <MDBox p={3}>
           <MDBox display="flex" alignItems="center" mb={3}>
-              <MDBox
-                display="flex" justifyContent="center" alignItems="center"
-                width="40px" height="40px" bgColor={color} variant="gradient"
-                color="white" borderRadius="lg" shadow="md" mr={2}
-              >
+              <MDBox display="flex" justifyContent="center" alignItems="center" width="40px" height="40px" bgColor={color} variant="gradient" color="white" borderRadius="lg" shadow="md" mr={2}>
                   <Icon fontSize="small">{icon}</Icon>
               </MDBox>
               <MDTypography variant="h6" fontWeight="bold">{title}</MDTypography>
@@ -70,7 +76,6 @@ const AdminDashboard = ({ activeTab }) => {
         try {
             const attRes = await fetch(`${API_URL}/attendance/today`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (attRes.ok) setEmployeeAttendance(await attRes.json());
-
             const leaveRes = await fetch(`${API_URL}/leaves/pending`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (leaveRes.ok) setLeaveRequests(await leaveRes.json());
         } catch (error) { console.error("Admin Sync Error"); }
@@ -125,16 +130,11 @@ const AdminDashboard = ({ activeTab }) => {
                                                   <MDTypography variant="button" fontWeight="bold">{emp.email}</MDTypography>
                                               </MDBox>
                                           </TableCell>
-                                          <TableCell align="center"><MDTypography variant="caption" fontWeight="bold">{emp.checkInTime}</MDTypography></TableCell>
-                                          <TableCell align="center"><MDTypography variant="caption" fontWeight="bold">{emp.checkOutTime || "-"}</MDTypography></TableCell>
+                                          <TableCell align="center"><MDTypography variant="caption" fontWeight="bold">{formatTime(emp.checkInTime)}</MDTypography></TableCell>
+                                          <TableCell align="center"><MDTypography variant="caption" fontWeight="bold">{emp.checkOutTime ? formatTime(emp.checkOutTime) : "-"}</MDTypography></TableCell>
                                           <TableCell align="center"><MDTypography variant="caption" color="info" fontWeight="bold">{emp.workHours || "-"}</MDTypography></TableCell>
                                           <TableCell align="center">
-                                              <Chip
-                                                label={emp.status}
-                                                color={emp.status === 'COMPLETED' ? 'success' : 'warning'}
-                                                size="small"
-                                                sx={{ color: "white", fontWeight: "bold" }}
-                                              />
+                                              <Chip label={emp.status} color={emp.status === 'COMPLETED' ? 'success' : 'warning'} size="small" sx={{ color: "white", fontWeight: "bold" }} />
                                           </TableCell>
                                       </TableRow>
                                     ))}
@@ -145,7 +145,6 @@ const AdminDashboard = ({ activeTab }) => {
                 </Grid>
             </Grid>
           )}
-
           {activeTab === 1 && (
             <Grid container spacing={3}>
                 <Grid item xs={12}>
@@ -195,8 +194,7 @@ const StaffDashboard = ({ activeTab, user }) => {
             if (attRes.ok) {
                 const history = await attRes.json();
                 const today = new Date().toLocaleDateString('en-CA');
-                const todayRecord = history.find(r => r.date === today); // Matches your Service IST date
-
+                const todayRecord = history.find(r => r.date === today);
                 if (todayRecord) {
                     setCheckInTime(todayRecord.checkInTime);
                     if (todayRecord.checkOutTime) {
@@ -207,10 +205,7 @@ const StaffDashboard = ({ activeTab, user }) => {
                         setIsCheckedIn(true);
                         setIsCompleted(false);
                     }
-                } else {
-                    setIsCheckedIn(false);
-                    setIsCompleted(false);
-                }
+                } else { setIsCheckedIn(false); setIsCompleted(false); }
             }
             const leaveRes = await fetch(`${API_URL}/leaves/user/${user.email}`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (leaveRes.ok) setMyLeaveHistory(await leaveRes.json());
@@ -270,8 +265,8 @@ const StaffDashboard = ({ activeTab, user }) => {
                                   </MDButton>
                                 )}
                             </MDBox>
-                            {isCheckedIn && <Chip icon={<Icon>check_circle</Icon>} label={`Checked In at ${checkInTime}`} color="success" sx={{ color: "white" }} />}
-                            {isCompleted && <MDBox><Chip label={`In: ${checkInTime}`} color="success" size="small" sx={{ mr: 1, color:"white" }} /><Chip label={`Out: ${checkOutTime}`} color="error" size="small" sx={{color:"white"}} /></MDBox>}
+                            {isCheckedIn && <Chip icon={<Icon>check_circle</Icon>} label={`Checked In at ${formatTime(checkInTime)}`} color="success" sx={{ color: "white" }} />}
+                            {isCompleted && <MDBox><Chip label={`In: ${formatTime(checkInTime)}`} color="success" size="small" sx={{ mr: 1, color:"white" }} /><Chip label={`Out: ${formatTime(checkOutTime)}`} color="error" size="small" sx={{color:"white"}} /></MDBox>}
                         </MDBox>
                     </ModernCard>
                 </Grid>
@@ -309,15 +304,20 @@ const StaffDashboard = ({ activeTab, user }) => {
 };
 
 // ==============================
-// 3. MAIN PROFILE (WITH WORKING SETTINGS)
+// 3. MAIN PROFILE (WITH CREATE ADMIN)
 // ==============================
 function Profile() {
     const [activeTab, setActiveTab] = useState(0);
     const [user, setUser] = useState(null);
 
-    // ✅ NEW STATE FOR EDITING
+    // Profile Edit State
     const [editName, setEditName] = useState("");
     const [editPassword, setEditPassword] = useState("");
+
+    // ✅ NEW STATE: CREATE ADMIN
+    const [newAdminName, setNewAdminName] = useState("");
+    const [newAdminEmail, setNewAdminEmail] = useState("");
+    const [newAdminPass, setNewAdminPass] = useState("");
 
     const navigate = useNavigate();
 
@@ -330,39 +330,52 @@ function Profile() {
 
         const userData = { ...storedUser, role: finalRole };
         setUser(userData);
-        setEditName(userData.fullName); // Pre-fill name
+        setEditName(userData.fullName);
     }, [navigate]);
 
-    // ✅ FUNCTION TO UPDATE PROFILE
     const handleSaveChanges = async () => {
         const token = localStorage.getItem("token");
         try {
             const payload = { fullName: editName, email: user.email };
-            if (editPassword) payload.password = editPassword; // Only send password if changed
-
+            if (editPassword) payload.password = editPassword;
             const res = await fetch(`${API_URL}/auth/update/${user.id}`, {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                const updatedUser = await res.json();
+                localStorage.setItem("user", JSON.stringify(updatedUser));
+                setUser({ ...updatedUser, role: user.role });
+                setEditPassword("");
+                Swal.fire("Success", "Profile updated!", "success");
+            } else { Swal.fire("Error", "Update failed", "error"); }
+        } catch (error) { Swal.fire("Error", "Server connection failed", "error"); }
+    };
+
+    // ✅ FUNCTION: CREATE NEW ADMIN
+    const handleCreateAdmin = async () => {
+        const token = localStorage.getItem("token");
+        if (!newAdminName || !newAdminEmail || !newAdminPass) {
+            Swal.fire("Missing Info", "Please fill all fields.", "warning");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/auth/create-admin`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ fullName: newAdminName, email: newAdminEmail, password: newAdminPass })
             });
 
             if (res.ok) {
-                const updatedUser = await res.json();
-                // 1. Update Local Storage
-                localStorage.setItem("user", JSON.stringify(updatedUser));
-                // 2. Update State
-                setUser({ ...updatedUser, role: user.role });
-                setEditPassword(""); // Clear password field
-                Swal.fire("Success", "Profile updated successfully!", "success");
+                Swal.fire("Created!", "New Admin has been added.", "success");
+                setNewAdminName(""); setNewAdminEmail(""); setNewAdminPass("");
             } else {
-                Swal.fire("Error", "Failed to update profile", "error");
+                const err = await res.text();
+                Swal.fire("Error", err, "error");
             }
-        } catch (error) {
-            Swal.fire("Error", "Server connection failed", "error");
-        }
+        } catch (e) { Swal.fire("Error", "Server error", "error"); }
     };
 
     if (!user) return null;
@@ -394,39 +407,56 @@ function Profile() {
           <MDBox mb={5}>
               {activeTab !== 2 && (user.role === 'admin' ? <AdminDashboard activeTab={activeTab} /> : <StaffDashboard activeTab={activeTab} user={user} />)}
 
-              {/* ✅ SETTINGS TAB (NOW FUNCTIONAL) */}
+              {/* ✅ SETTINGS TAB (NOW WITH CREATE ADMIN) */}
               {activeTab === 2 && (
-                <ModernCard title="Account Settings" icon="security" color="dark">
-                    <Grid container spacing={4}>
-                        <Grid item xs={12} md={6}>
-                            <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>ACCOUNT DETAILS</MDTypography>
-                            {/* Input bound to editName state */}
-                            <MDInput label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} fullWidth sx={{mb:2}} />
-                            <MDInput label="Email" value={user.email} fullWidth disabled />
+                <MDBox>
+                    <ModernCard title="Account Settings" icon="security" color="dark">
+                        <Grid container spacing={4}>
+                            <Grid item xs={12} md={6}>
+                                <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>ACCOUNT DETAILS</MDTypography>
+                                <MDInput label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} fullWidth sx={{mb:2}} />
+                                <MDInput label="Email" value={user.email} fullWidth disabled />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>SECURITY</MDTypography>
+                                <MDInput label="New Password" type="password" fullWidth placeholder="Leave blank to keep current" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} sx={{mb: 2}} />
+                                <MDBox display="flex" alignItems="center"><Switch defaultChecked /><MDTypography variant="button" color="text" ml={1}>Notifications</MDTypography></MDBox>
+                            </Grid>
+                            <Grid item xs={12} textAlign="right">
+                                <Divider sx={{my: 3}} />
+                                <MDButton variant="gradient" color="info" onClick={handleSaveChanges}>Save Changes</MDButton>
+                            </Grid>
                         </Grid>
-                        <Grid item xs={12} md={6}>
-                            <MDTypography variant="caption" fontWeight="bold" color="text" display="block" mb={2}>SECURITY</MDTypography>
-                            {/* Input bound to editPassword state */}
-                            <MDInput
-                              label="New Password"
-                              type="password"
-                              fullWidth
-                              placeholder="Leave blank to keep current"
-                              value={editPassword}
-                              onChange={(e) => setEditPassword(e.target.value)}
-                              sx={{mb: 2}}
-                            />
-                            <MDBox display="flex" alignItems="center"><Switch defaultChecked /><MDTypography variant="button" color="text" ml={1}>Notifications</MDTypography></MDBox>
-                        </Grid>
-                        <Grid item xs={12} textAlign="right">
-                            <Divider sx={{my: 3}} />
-                            {/* Button calls handleSaveChanges */}
-                            <MDButton variant="gradient" color="info" onClick={handleSaveChanges}>
-                                Save Changes
-                            </MDButton>
-                        </Grid>
-                    </Grid>
-                </ModernCard>
+                    </ModernCard>
+
+                    {/* ✅ SECTION: SYSTEM ADMINISTRATION (Only for Admins) */}
+                    {user.role === 'admin' && (
+                      <MDBox mt={4}>
+                          <ModernCard title="System Administration" icon="admin_panel_settings" color="error">
+                              <MDTypography variant="h6" fontWeight="bold" mb={2}>Create New Admin</MDTypography>
+                              <MDTypography variant="caption" color="text" mb={3} display="block">
+                                  Granting Admin privileges allows full access to the dashboard. Proceed with caution.
+                              </MDTypography>
+                              <Grid container spacing={3}>
+                                  <Grid item xs={12} md={4}>
+                                      <MDInput label="Full Name" fullWidth value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} />
+                                  </Grid>
+                                  <Grid item xs={12} md={4}>
+                                      <MDInput label="Email Address" fullWidth value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} />
+                                  </Grid>
+                                  <Grid item xs={12} md={4}>
+                                      <MDInput label="Password" type="password" fullWidth value={newAdminPass} onChange={(e) => setNewAdminPass(e.target.value)} />
+                                  </Grid>
+                                  <Grid item xs={12} textAlign="right">
+                                      <MDButton variant="gradient" color="error" onClick={handleCreateAdmin}>
+                                          <Icon sx={{mr:1}}>add_moderator</Icon> Add Admin
+                                      </MDButton>
+                                  </Grid>
+                              </Grid>
+                          </ModernCard>
+                      </MDBox>
+                    )}
+                </MDBox>
               )}
           </MDBox>
           <Footer />
